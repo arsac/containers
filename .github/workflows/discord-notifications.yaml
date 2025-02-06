@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   notify:
-    if: ${{ github.actor != 'sticky-gecko[bot]' }}
+    if: ${{ github.actor != 'bot-jackson[bot]' }}
     runs-on: ubuntu-latest
     steps:
       - name: Send Discord Webhook

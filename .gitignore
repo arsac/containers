@@ -1,3 +1,5 @@
 .bin
 .private
 docker-bake.json
+
+.idea
