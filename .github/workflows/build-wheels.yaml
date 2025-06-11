@@ -1,0 +1,195 @@
+name: Build Wheels
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Build weekly on Sundays
+    - cron: "0 2 * * 0"
+
+env:
+  TORCH_CUDA_ARCH_LIST: "12.0"
+  FLASH_ATTN_CUDA_ARCHS: "120"
+  # RUNNER_TOOL_CACHE: "/tmp/tools"
+  NVCC_FLAGS: "-allow-unsupported-compiler"
+  FLASH_ATTENTION_FORCE_BUILD: true
+  UV_LINK_MODE: copy
+jobs:
+  build-pytorch-wheels:
+    name: Build ${{ matrix.package.name }} (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"] #["3.11", "3.12"]
+        cuda-version: ["12.9.0"]
+        package:
+          - name: "xformers"
+            repo: "facebookresearch/xformers"
+            ref: "main"
+            # ref: "v0.0.30"
+            extra_deps: "ninja"
+          - name: "flash-attn"
+            repo: "Dao-AILab/flash-attention"
+            # ref: "v2.5.8"
+            ref: "main"
+            extra_deps: "ninja packaging psutil"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.package.repo }}
+          ref: ${{ matrix.package.ref }}
+          fetch-depth: 1
+          submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ matrix.package.name }}
+
+      # - name: Clone ${{ matrix.package.name }}
+      #   run: |
+      #     git clone --depth 1 --branch ${{ matrix.package.ref }} \
+      #       --recursive ${{ matrix.package.repo }} ${{ matrix.package.name }}
+
+      - name: Free up disk space
+        if: ${{ runner.os == 'Linux' }}
+        # https://github.com/easimon/maximize-build-space/blob/master/action.yml
+        # https://github.com/easimon/maximize-build-space/tree/test-report
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+
+      # - name: Set up swap space
+      #   if: runner.os == 'Linux'
+      #   uses: pierotofy/set-swap-space@v1.0
+      #   with:
+      #     swap-size-gb: 10
+
+      - name: Install CUDA ${{ matrix.cuda-version }}
+        uses: Jimver/cuda-toolkit@v0.2.25
+        id: cuda-toolkit
+        with:
+          cuda: ${{ matrix.cuda-version }}
+          linux-local-args: '["--toolkit"]'
+          method: "network"
+          sub-packages: '["nvcc", "libcusparse", "libcusparse_dev"]'
+          use-github-cache: false
+
+      # - name: Setup Runner
+      #   uses: ./.github/actions/setup-build-cuda
+      #   with:
+      #     python: ${{ matrix.python-version }}
+      #     working-directory: ./${{ matrix.package.name }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ inputs.python-version }}
+          activate-environment: true
+          working-directory: ${{ matrix.package.name }}
+          enable-cache: true
+          cache-suffix: ${{ matrix.package.name }}
+
+      - name: Install Python ${{ inputs.python-version }}
+        run: uv pip install --python=${{ inputs.python-version }} pip
+
+      - name: Setup PyTorch environment
+        id: setup_pytorch
+        run: |
+          # Install PyTorch first (shared dependency)
+          uv pip install packaging wheel setuptools ninja
+          uv pip install torch torchvision torchaudio \
+            --index-url https://download.pytorch.org/whl/nightly/cu128
+
+          # Extract installed version of pytorch to github output
+          PYTORCH_VERSION=$(uv run python -c "import torch; print(torch.__version__)")
+          echo "pytorch_version=$PYTORCH_VERSION" >> $GITHUB_OUTPUT
+          echo "PyTorch version: $PYTORCH_VERSION"
+
+      - name: Install package-specific dependencies
+        run: |
+          cd ${{ matrix.package.name }}
+          if [ -f requirements.txt ]; then
+            uv pip install -r requirements.txt
+          fi
+          if [ -n "${{ matrix.package.extra_deps }}" ]; then
+            uv pip install ${{ matrix.package.extra_deps }}
+          fi
+
+      - name: Build ${{ matrix.package.name }} wheel
+        run: |
+          export PATH=/usr/local/nvidia/bin:/usr/local/nvidia/lib64:$PATH
+          export LD_LIBRARY_PATH=/usr/local/nvidia/lib64:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+
+          cd ${{ matrix.package.name }}
+          mkdir -p dist
+          uv build --wheel --no-build-isolation --verbose -o dist
+
+      - name: Get wheel info
+        id: wheel_info
+        run: |
+          WHEEL_FILE=$(ls ${{ matrix.package.name }}/dist/*.whl | head -1)
+          WHEEL_NAME=$(basename "$WHEEL_FILE")
+          echo "wheel_file=$WHEEL_FILE" >> $GITHUB_OUTPUT
+          echo "wheel_name=$WHEEL_NAME" >> $GITHUB_OUTPUT
+
+      # - name: Test wheel installation
+      #   run: |
+      #     # Test in clean environment
+      #     python3 -m venv test-env
+      #     source test-env/bin/activate
+      #     uv pip install torch --index-url https://download.pytorch.org/whl/nightly/cu128
+      #     uv pip install ${{ steps.wheel_info.outputs.wheel_file }}
+      #     python -c "import ${{ matrix.package.name }}; print('${{ matrix.package.name }} imported successfully')"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.package.name }}-wheel-py${{ matrix.python-version }}
+          path: ${{ matrix.package.name }}/dist/*.whl
+
+  create-release:
+    needs: build-pytorch-wheels
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: wheels/
+
+      - name: Create combined release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: pytorch-wheels-cuda${{ github.event.inputs.cuda_version || '12.9.0' }}
+          name: PyTorch Wheels (CUDA ${{ github.event.inputs.cuda_version || '12.9.0' }})
+          body: |
+            ## PyTorch Ecosystem Wheel Release
+
+            **PyTorch version:** ${{ github.event.inputs.pytorch_ref || 'v2.1.0' }}
+            **CUDA version:** ${{ github.event.inputs.cuda_version || '12.9.0' }}
+            **Python versions:** 3.11, 3.12
+
+            ### Packages included:
+            - xformers
+            - flash-attn
+
+            ### Installation
+            ```bash
+            # Install all packages
+            pip install wheels/*.whl
+            ```
+          files: wheels/**/*.whl
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
