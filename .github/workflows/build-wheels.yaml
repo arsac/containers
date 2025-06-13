@@ -8,188 +8,152 @@ on:
 
 env:
   TORCH_CUDA_ARCH_LIST: "12.0"
-  FLASH_ATTN_CUDA_ARCHS: "120"
   # RUNNER_TOOL_CACHE: "/tmp/tools"
   NVCC_FLAGS: "-allow-unsupported-compiler"
-  FLASH_ATTENTION_FORCE_BUILD: true
   UV_LINK_MODE: copy
 jobs:
-  build-pytorch-wheels:
-    name: Build ${{ matrix.package.name }} (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+  setup-environment:
+    name: Setup Build Environment
+    runs-on: containers-runner
+    outputs:
+      python-version: ${{ steps.config.outputs.python-version }}
+      cuda-version: ${{ steps.config.outputs.cuda-version }}
+    steps:
+      - id: config
+        run: |
+          echo "python-version=3.12" >> $GITHUB_OUTPUT
+          echo "cuda-version=12.9.1" >> $GITHUB_OUTPUT
 
-    permissions:
-      contents: write
-      packages: write
-
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.12"] #["3.11", "3.12"]
-        cuda-version: ["12.9.0"]
-        package:
-          - name: "xformers"
-            repo: "facebookresearch/xformers"
-            ref: "main"
-            # ref: "v0.0.30"
-            extra_deps: "ninja"
-          - name: "flash-attn"
-            repo: "Dao-AILab/flash-attention"
-            # ref: "v2.5.8"
-            ref: "main"
-            extra_deps: "ninja packaging psutil"
+  build-flash-attn:
+    name: Build flash-attn
+    runs-on: containers-runner
+    needs: setup-environment
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Checkout
+      - name: Checkout flash-attn
         uses: actions/checkout@v4
         with:
-          repository: ${{ matrix.package.repo }}
-          ref: ${{ matrix.package.ref }}
+          repository: "Dao-AILab/flash-attention"
+          ref: "main"
           fetch-depth: 1
           submodules: recursive
-          token: ${{ secrets.GITHUB_TOKEN }}
-          path: ${{ matrix.package.name }}
+          path: "flash-attn"
 
-      # - name: Clone ${{ matrix.package.name }}
-      #   run: |
-      #     git clone --depth 1 --branch ${{ matrix.package.ref }} \
-      #       --recursive ${{ matrix.package.repo }} ${{ matrix.package.name }}
-
-      - name: Free up disk space
-        if: ${{ runner.os == 'Linux' }}
-        # https://github.com/easimon/maximize-build-space/blob/master/action.yml
-        # https://github.com/easimon/maximize-build-space/tree/test-report
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-
-      # - name: Set up swap space
-      #   if: runner.os == 'Linux'
-      #   uses: pierotofy/set-swap-space@v1.0
-      #   with:
-      #     swap-size-gb: 10
-
-      - name: Install CUDA ${{ matrix.cuda-version }}
-        uses: Jimver/cuda-toolkit@v0.2.25
-        id: cuda-toolkit
+      - name: Setup Runner
+        uses: ./.github/actions/setup-build-cuda
         with:
-          cuda: ${{ matrix.cuda-version }}
-          linux-local-args: '["--toolkit"]'
-          method: "network"
-          sub-packages: '["nvcc", "libcusparse", "libcusparse_dev"]'
-          use-github-cache: false
+          python-version: ${{ needs.setup-environment.outputs.python-version }}
+          working-directory: ./flash-attn
 
-      # - name: Setup Runner
-      #   uses: ./.github/actions/setup-build-cuda
-      #   with:
-      #     python: ${{ matrix.python-version }}
-      #     working-directory: ./${{ matrix.package.name }}
+      - name: Build flash-attn wheel
+        run: |
+          cd flash-attn
+          mkdir -p dist
+          echo "TORCH_CUDA_ARCH_LIST: $TORCH_CUDA_ARCH_LIST"
+          uv pip install setuptools wheel psutil ninja packaging
+          uv build --wheel --no-build-isolation --verbose -o dist
+        env:
+          FLASH_ATTENTION_FORCE_BUILD: true
+          FLASH_ATTN_CUDA_ARCHS: "120"
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - name: Upload flash-attn wheel
+        uses: actions/upload-artifact@v4
         with:
-          python-version: ${{ inputs.python-version }}
-          activate-environment: true
-          working-directory: ${{ matrix.package.name }}
-          enable-cache: true
-          cache-suffix: ${{ matrix.package.name }}
+          name: flash-attn-wheel
+          path: flash-attn/dist/*.whl
 
-      - name: Install Python ${{ inputs.python-version }}
-        run: uv pip install --python=${{ inputs.python-version }} pip
+  build-xformers:
+    name: Build xformers (with flash-attn dependency)
+    runs-on: containers-runner
+    needs: [setup-environment, build-flash-attn]
 
-      - name: Setup PyTorch environment
-        id: setup_pytorch
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout xformers
+        uses: actions/checkout@v4
+        with:
+          repository: "facebookresearch/xformers"
+          ref: "main"
+          fetch-depth: 1
+          submodules: recursive
+          path: "xformers"
+
+      - name: Setup Runner
+        uses: ./.github/actions/setup-build-cuda
+        with:
+          python-version: ${{ needs.setup-environment.outputs.python-version }}
+          working-directory: ./xformers
+
+      - name: Download flash-attn wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: flash-attn-wheel
+          path: flash-attn-wheel/
+
+      - name: Install flash-attn dependency
         run: |
-          # Install PyTorch first (shared dependency)
-          uv pip install packaging wheel setuptools ninja
-          uv pip install torch torchvision torchaudio \
-            --index-url https://download.pytorch.org/whl/nightly/cu128
+          FLASH_ATTN_WHEEL=$(find flash-attn-wheel -name "*.whl" | head -1)
+          echo "Installing flash-attn wheel: $FLASH_ATTN_WHEEL"
+          uv pip install "$FLASH_ATTN_WHEEL"
 
-          # Extract installed version of pytorch to github output
-          PYTORCH_VERSION=$(uv run python -c "import torch; print(torch.__version__)")
-          echo "pytorch_version=$PYTORCH_VERSION" >> $GITHUB_OUTPUT
-          echo "PyTorch version: $PYTORCH_VERSION"
+          uv pip install ninja packaging wheel setuptools
 
-      - name: Install package-specific dependencies
+          # Verify installation
+          uv run python -c "import flash_attn; print(f'flash-attn version: {flash_attn.__version__}')"
+
+      - name: Build xformers wheel
         run: |
-          cd ${{ matrix.package.name }}
-          if [ -f requirements.txt ]; then
-            uv pip install -r requirements.txt
-          fi
-          if [ -n "${{ matrix.package.extra_deps }}" ]; then
-            uv pip install ${{ matrix.package.extra_deps }}
-          fi
-
-      - name: Build ${{ matrix.package.name }} wheel
-        run: |
-          export PATH=/usr/local/nvidia/bin:/usr/local/nvidia/lib64:$PATH
-          export LD_LIBRARY_PATH=/usr/local/nvidia/lib64:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
-
-          cd ${{ matrix.package.name }}
+          cd xformers
           mkdir -p dist
           uv build --wheel --no-build-isolation --verbose -o dist
 
-      - name: Get wheel info
-        id: wheel_info
-        run: |
-          WHEEL_FILE=$(ls ${{ matrix.package.name }}/dist/*.whl | head -1)
-          WHEEL_NAME=$(basename "$WHEEL_FILE")
-          echo "wheel_file=$WHEEL_FILE" >> $GITHUB_OUTPUT
-          echo "wheel_name=$WHEEL_NAME" >> $GITHUB_OUTPUT
-
-      # - name: Test wheel installation
-      #   run: |
-      #     # Test in clean environment
-      #     python3 -m venv test-env
-      #     source test-env/bin/activate
-      #     uv pip install torch --index-url https://download.pytorch.org/whl/nightly/cu128
-      #     uv pip install ${{ steps.wheel_info.outputs.wheel_file }}
-      #     python -c "import ${{ matrix.package.name }}; print('${{ matrix.package.name }} imported successfully')"
-
-      - name: Upload artifact
+      - name: Upload xformers wheel
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.package.name }}-wheel-py${{ matrix.python-version }}
-          path: ${{ matrix.package.name }}/dist/*.whl
+          name: xformers-wheel
+          path: xformers/dist/*.whl
 
-  create-release:
-    needs: build-pytorch-wheels
+  publish-container:
+    needs: [setup-environment, build-flash-attn, build-xformers]
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'
 
+    permissions:
+      contents: read
+      packages: write
+
     steps:
-      - name: Download all artifacts
+      - name: Download all wheels
         uses: actions/download-artifact@v4
         with:
+          pattern: "*-wheel"
           path: wheels/
+          merge-multiple: true
 
-      - name: Create combined release
-        uses: softprops/action-gh-release@v1
+      - name: Create wheel distribution container
+        run: |
+          # Create Dockerfile for wheel distribution
+          cat > Dockerfile << 'EOF'
+          FROM scratch
+          COPY wheels/ /wheels/
+          EOF
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          tag_name: pytorch-wheels-cuda${{ github.event.inputs.cuda_version || '12.9.0' }}
-          name: PyTorch Wheels (CUDA ${{ github.event.inputs.cuda_version || '12.9.0' }})
-          body: |
-            ## PyTorch Ecosystem Wheel Release
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-            **PyTorch version:** ${{ github.event.inputs.pytorch_ref || 'v2.1.0' }}
-            **CUDA version:** ${{ github.event.inputs.cuda_version || '12.9.0' }}
-            **Python versions:** 3.11, 3.12
-
-            ### Packages included:
-            - xformers
-            - flash-attn
-
-            ### Installation
-            ```bash
-            # Install all packages
-            pip install wheels/*.whl
-            ```
-          files: wheels/**/*.whl
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push container
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/python-wheels:latest

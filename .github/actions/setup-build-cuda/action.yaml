@@ -1,0 +1,94 @@
+name: Set up Runner for build
+description: Sets up the GitHub Actions runner with CUDA and Python for building packages.
+inputs:
+  python-version:
+    description: Python version to install
+    required: false
+    default: "3.12"
+  cuda-version:
+    description: CUDA version to install
+    required: false
+    default: "12.9.1"
+  working-directory:
+    description: Directory to run the action in
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - name: Free up disk space
+      shell: bash
+      if: ${{ runner.os == 'Linux' }}
+      # https://github.com/easimon/maximize-build-space/blob/master/action.yml
+      # https://github.com/easimon/maximize-build-space/tree/test-report
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache/CodeQL
+
+    # - name: Set up swap space
+    #   if: ${{ !env.ACT }} && runner.os == 'Linux'
+    #   uses: pierotofy/set-swap-space@v1.0
+    #   with:
+    #     swap-size-gb: 10
+
+    - name: Cache CUDA installer
+      id: cache-cuda
+      uses: actions/cache@v4
+      with:
+        path: cuda.run
+        key: cuda-${{ inputs.cuda-version }}-${{ runner.os }}-${{ runner.arch }}
+        restore-keys: |
+          cuda-${{ inputs.cuda-version }}-${{ runner.os }}-
+
+    - name: Download CUDA installer
+      shell: bash
+      if: steps.cache-cuda.outputs.cache-hit != 'true'
+      run: |
+        wget https://developer.download.nvidia.com/compute/cuda/12.9.1/local_installers/cuda_12.9.1_575.57.08_linux.run -O cuda.run
+
+    - name: Install CUDA toolkit
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends build-essential wget git
+
+        # Use cached installer
+        chmod +x cuda.run
+        sudo ./cuda.run --silent --toolkit
+
+        echo "CUDA_HOME=/usr/local/cuda" >> ${GITHUB_ENV}
+        echo "/usr/local/cuda/bin" >> $GITHUB_PATH
+        echo "NVCC_FLAGS=-allow-unsupported-compiler" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=/usr/local/cuda/lib64" >> $GITHUB_ENV
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        python-version: ${{ inputs.python-version }}
+        activate-environment: true
+        working-directory: ${{ inputs.working-directory }}
+
+    - name: Install Python ${{ inputs.python-version }}
+      shell: bash
+      run: uv pip install --python=${{ inputs.python-version }} pip
+
+    - name: Setup PyTorch environment
+      shell: bash
+      id: setup_pytorch
+      run: |
+        # Install PyTorch first (shared dependency)
+        uv pip install packaging wheel setuptools ninja
+        uv pip install torch torchvision torchaudio \
+          --index-url https://download.pytorch.org/whl/nightly/cu128
+
+        # Extract installed version of pytorch to github output
+        PYTORCH_VERSION=$(uv run python -c "import torch; print(torch.__version__)")
+        echo "pytorch_version=$PYTORCH_VERSION" >> $GITHUB_OUTPUT
+        echo "PyTorch version: $PYTORCH_VERSION"
+
+    - shell: bash
+      run: |
+        which g++
+        g++ --version
