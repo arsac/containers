@@ -1,0 +1,4 @@
+--artifact-server-path $PWD/.artifacts
+--container-architecture=linux/amd64
+-P ubuntu-latest=ghcr.io/catthehacker/ubuntu:full-24.04
+--privileged

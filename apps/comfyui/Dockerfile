@@ -19,10 +19,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install system-level Python packages first (before creating user)
 RUN uv pip install --system --upgrade pip && \
     uv pip install --system torch torchvision torchaudio --pre --index-url https://download.pytorch.org/whl/nightly/cu128 && \
-    uv pip install --system comfy-cli==${CLI_VERSION} pynvml flatbuffers numpy packaging protobuf sympy && \
-    uv pip install --system \
-    "https://github.com/arsac/comfyui-flux/releases/download/xformers-v0.0.30-cuda12.9.0/xformers-0.0.30+4cf69f0.d20250529-cp312-cp312-linux_x86_64.whl" && \
-    uv pip install --system onnxruntime-gpu --pre --index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/ORT-Nightly/pypi/simple/
+    uv pip install --system comfy-cli==${CLI_VERSION} pynvml flatbuffers numpy packaging protobuf sympy
+
+COPY --from=ghcr.io/arsac/containers/python-wheels:latest /wheels /tmp/wheels
+RUN find /tmp/wheels -name "*.whl" -exec uv pip install --system {} \; && \
+    rm -rf /tmp/wheels
+
+RUN uv pip install --system onnxruntime-gpu
 
 # Clone ComfyUI and ComfyUI-Manager as root, then change ownership
 RUN git clone --depth 1 --branch ${VERSION} --quiet https://github.com/comfyanonymous/ComfyUI.git /app/comfyui && \
@@ -66,7 +69,8 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 # Configure comfy CLI
 RUN comfy --skip-prompt tracking disable && \
-    comfy --skip-prompt set-default ${COMFY_HOME}
+    comfy --skip-prompt set-default ${COMFY_HOME} && \
+    comfy node registry-install comfyui-model-manager
 
 EXPOSE 8188
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]

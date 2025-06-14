@@ -4,9 +4,6 @@ set -e
 # Activate virtual environment
 source /app/.venv/bin/activate
 
-
-
-
 # Creates the directories for the models inside the mounted host volume
 if [ -z "$COMFY_HOME" ]; then
     echo "COMFY_HOME is not set. Please set it to the ComfyUI home directory."

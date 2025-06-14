@@ -4,11 +4,10 @@ on:
   workflow_dispatch:
   schedule:
     # Build weekly on Sundays
-    - cron: "0 2 * * 0"
+    - cron: "0 4 * * 0"
 
 env:
   TORCH_CUDA_ARCH_LIST: "12.0"
-  # RUNNER_TOOL_CACHE: "/tmp/tools"
   NVCC_FLAGS: "-allow-unsupported-compiler"
   UV_LINK_MODE: copy
 jobs:
@@ -156,4 +155,4 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/python-wheels:latest
+            ghcr.io/arsac/python_wheels:python-${{ needs.setup-environment.outputs.python-version }}-cuda-${{ needs.setup-environment.outputs.cuda-version }}
