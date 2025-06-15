@@ -119,18 +119,6 @@ jobs:
         run: |
           rsync -a --ignore-existing --progress ./include/ ./apps/${{ inputs.app }}/
 
-      # - name: Free up disk space
-      #   shell: bash
-      #   if: ${{ runner.os == 'Linux' }}
-      #   # https://github.com/easimon/maximize-build-space/blob/master/action.yml
-      #   # https://github.com/easimon/maximize-build-space/tree/test-report
-      #   run: |
-      #     sudo rm -rf /usr/share/dotnet
-      #     sudo rm -rf /usr/local/lib/android
-      #     sudo rm -rf /opt/ghc
-      #     sudo rm -rf /opt/hostedtoolcache/CodeQL
-      #     sudo docker image prune --all --force
-
       - name: Build Application
         uses: docker/bake-action@37816e747588cb137173af99ab33873600c46ea8 # v6.8.0
         id: bake

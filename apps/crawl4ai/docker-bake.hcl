@@ -1,15 +1,15 @@
 target "docker-metadata-action" {}
 
 variable "APP" {
-  default = "ai-toolkit"
+  default = "crawl4ai"
 }
 
 variable "VERSION" {
-  default = "main"
+  default = "v0.6.3"
 }
 
 variable "SOURCE" {
-  default = "https://github.com/ostris/ai-toolkit"
+  default = "https://github.com/unclecode/crawl4ai"
 }
 
 group "default" {

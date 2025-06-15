@@ -5,7 +5,7 @@ FROM onerahmet/ffmpeg:n7.1 AS ffmpeg
 
 FROM swaggerapi/swagger-ui:v5.9.1 AS swagger-ui
 
-FROM nvidia/cuda:12.9.0-base-ubuntu22.04
+FROM nvidia/cuda:12.8.0-base-ubuntu22.04
 ARG VERSION
 
 
@@ -51,4 +51,4 @@ RUN $POETRY_VENV/bin/pip install torch==2.7.1+cu128 torchaudio==2.7.1+cu128 --in
 
 EXPOSE 9000
 
-CMD whisper-asr-webservice
+CMD ["whisper-asr-webservice"]
