@@ -8,39 +8,36 @@ ARG MANAGER_VERSION
 ARG CLI_VERSION
 
 # Install only runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt \
+    --mount=type=cache,target=/var/lib/apt/lists \
+    apt-get update && apt-get install -y --no-install-recommends \
     build-essential cmake ffmpeg git curl wget htop nvtop rsync unzip openssl && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives
 
-RUN curl -sL https://deb.nodesource.com/setup_23.x -o nodesource_setup.sh && \
+RUN --mount=type=cache,target=/var/cache/apt \
+    --mount=type=cache,target=/var/lib/apt/lists \
+    curl -sL https://deb.nodesource.com/setup_23.x -o nodesource_setup.sh && \
     bash nodesource_setup.sh && \
     apt-get update && \
     apt-get install -y nodejs && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# RUN curl https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb -o /tmp/cuda-keyring.deb && \
-#     dpkg -i /tmp/cuda-keyring.deb && \
-#     rm /tmp/cuda-keyring.deb && \
-#     apt-get update && \
-#     apt-get install -y --no-install-recommends \
-#     build-essential libnccl-dev cuda-compiler-12-9 cuda-libraries-dev-12-9 libcudnn9-dev && \
-#     apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives
-
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 RUN rm -f /usr/lib/python*/EXTERNALLY-MANAGED
 
-RUN uv pip install --upgrade pip && \
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --upgrade pip && \
     uv pip install torch torchao torchvision torchaudio --pre --index-url https://download.pytorch.org/whl/nightly/cu128
 
 # Copy python wheels from the shared container
 COPY --from=ghcr.io/arsac/containers/python-wheels:latest /wheels /tmp/wheels
-RUN find /tmp/wheels -name "*.whl" -exec uv pip install {} \; && \
-    rm -rf /tmp/wheels
 
-RUN uv pip install onnxruntime-gpu
-
+RUN --mount=type=cache,target=/root/.cache/uv \
+    find /tmp/wheels -name "*.whl" -exec uv pip install {} \; && \
+    rm -rf /tmp/wheels && \
+    uv pip install onnxruntime-gpu
 
 WORKDIR /
 # Clone ai-toolkit
@@ -50,12 +47,12 @@ RUN git clone --depth 1 --branch main --quiet https://github.com/ostris/ai-toolk
            -e 's/torchvision==/torchvision>=/g' \
            -e 's/torchaudio==/torchaudio>=/g' \
            -e 's/torchao==/torchao>=/g' \
-           requirements.txt && \
-    uv pip install --requirement requirements.txt
-
+           requirements.txt
 
 WORKDIR /app
 
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --requirement requirements.txt
 
 ADD entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
@@ -71,10 +68,10 @@ ENV HOME="/config" \
 # ENV VIRTUAL_ENV=/app/.venv
 # ENV PATH="/app/.venv/bin:$PATH"
 
-
 WORKDIR /app/ui
 
-RUN npm install && \
+RUN --mount=type=cache,target=/root/.npm \
+    npm install && \
     npm run build && \
     npm run update_db
 
