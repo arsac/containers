@@ -2,7 +2,7 @@
 set -e
 
 # Activate virtual environment
-source /app/.venv/bin/activate
+source .venv/bin/activate
 
 # Creates the directories for the models inside the mounted host volume
 if [ -z "$COMFY_HOME" ]; then
@@ -56,4 +56,6 @@ do
     fi
 done
 
+echo "Starting ComfyUI..."
 "$@"
+
