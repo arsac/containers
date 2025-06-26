@@ -35,12 +35,6 @@ for MODEL_DIRECTORY in ${MODEL_DIRECTORIES[@]}; do
     mkdir -p $MODEL_DIR/$MODEL_DIRECTORY
 done
 
-echo "Creating symlink for ComfyUI Manager..."
-rm --force $COMFY_HOME/custom_nodes/ComfyUI-Manager
-ln -s \
-    $COMFYUI_MANAGER_HOME \
-    $COMFY_HOME/custom_nodes/ComfyUI-Manager
-
 echo "Installing requirements for custom nodes..."
 for CUSTOM_NODE_DIRECTORY in $COMFY_HOME/custom_nodes/*;
 do

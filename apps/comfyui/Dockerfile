@@ -62,11 +62,11 @@ RUN comfy --skip-prompt tracking disable && \
     comfy node registry-install comfyui-model-manager
 
 RUN chown -R nobody:nogroup /config && \
-    chmod -R 755 /config && \
+    chmod -R 777 /config && \
     chown -R nobody:nogroup /app/comfyui && \
     chmod -R 755 /app/comfyui && \
     chown -R nobody:nogroup /app/comfyui-manager && \
-    chmod -R 755 /app/comfyui-manager
+    chmod -R 777 /app/comfyui-manager
 
 ADD entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
@@ -79,4 +79,3 @@ EXPOSE 8188
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 
 CMD ["uv", "run", "/app/comfyui/main.py", "--listen", "0.0.0.0", "--port", "8188"]
-# CMD ["comfy", "launch", "--", "--listen", "0.0.0.0", "--port", "8188", "--disable-auto-launch"]
