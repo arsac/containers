@@ -1,0 +1,38 @@
+comfyui:
+  base_path: /
+  download_model_base: /models
+  # You can use is_default to mark that these folders should be listed first, and used as the default dirs for eg downloads
+  is_default: true
+  custom_nodes: config/custom_nodes/
+
+  configs: models/configs/
+
+  checkpoints: models/checkpoints/
+  clip: models/clip/
+  clip_vision: models/clip_vision/
+
+  controlnet: models/controlnet/
+  diffusion_models: |
+    models/diffusion_models
+    models/unet
+  embeddings: models/embeddings/
+  loras: models/loras/
+  upscale_models: models/upscale_models/
+  vae: models/vae/
+  text_encodings: models/text_encodings/
+
+  vae_approx: models/vae_approx/
+
+  text_encoders: |
+    models/text_encoders
+    models/clip
+
+  style_models: models/style_models/
+
+  diffusers: models/diffusers/
+
+  gligen: models/gligen/
+
+  hypernetworks: models/hypernetworks/
+  photomaker: models/photomaker/
+  classifiers: models/classifiers/
