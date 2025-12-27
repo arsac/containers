@@ -2,45 +2,41 @@
 
 set -e
 
-unset UV_SYSTEM_PYTHON
-
-mkdir -p "${VIRTUAL_ENV}"
-uv venv --system-site-packages --link-mode=copy --allow-existing "${VIRTUAL_ENV}"
-
-# Activate virtual environment
-source "${VIRTUAL_ENV}/bin/activate"
-
-# Set UV to use the active virtual environment
-export UV_PROJECT_ENVIRONMENT="${VIRTUAL_ENV}"
-
-# Get current PyTorch version and ensure it's CUDA 12.8
-CURRENT_TORCH_VERSION=$(python -c "import torch; print(torch.__version__)")
-echo "System PyTorch: $CURRENT_TORCH_VERSION"
-
-# Creates the directories for the models inside the mounted host volume
-if [ ! -d "$CONFIG_DIR" ]; then
-    echo "CONFIG_DIR is not set. Please set it to the ComfyUI base directory."
+# Validate required environment variables
+if [ -z "$CONFIG_DIR" ]; then
+    echo "ERROR: CONFIG_DIR is not set"
     exit 1
 fi
 
-#  If /custom/custom_nodes does not exist, create it
-if [ ! -d "$CONFIG_DIR/custom_nodes" ]; then
-    echo "Creating /custom/custom_nodes directory..."
-    mkdir -p "$CONFIG_DIR/custom_nodes"
+if [ -z "$MODEL_DIR" ]; then
+    echo "ERROR: MODEL_DIR is not set"
+    exit 1
 fi
 
+# Setup virtual environment with system site-packages (for torch, xformers, etc.)
+unset UV_SYSTEM_PYTHON
+mkdir -p "${VIRTUAL_ENV}"
+uv venv --system-site-packages --link-mode=copy --allow-existing "${VIRTUAL_ENV}"
+source "${VIRTUAL_ENV}/bin/activate"
+export UV_PROJECT_ENVIRONMENT="${VIRTUAL_ENV}"
+
+# Log PyTorch version
+echo "PyTorch: $(python -c "import torch; print(torch.__version__)")"
+
+# Create required directories
+mkdir -p "$CONFIG_DIR/custom_nodes"
+mkdir -p "$USER_DIR"
+
+# Install ComfyUI-Manager if not present
 if [ ! -d "$CONFIG_DIR/custom_nodes/ComfyUI-Manager" ]; then
-    echo "Cloning ComfyUI-Manager into custom_nodes..."
+    echo "Cloning ComfyUI-Manager..."
     git clone --depth 1 --quiet https://github.com/Comfy-Org/ComfyUI-Manager.git "$CONFIG_DIR/custom_nodes/ComfyUI-Manager"
 fi
 
-if [ ! -d "$USER_DIR" ]; then
-    mkdir -p "$USER_DIR"
-fi
-
-echo "Creating directories for models..."
+# Create model directories
 MODEL_DIRECTORIES=(
     "checkpoints"
+    "classifiers"
     "clip"
     "clip_vision"
     "configs"
@@ -59,21 +55,20 @@ MODEL_DIRECTORIES=(
     "vae"
     "vae_approx"
 )
-for MODEL_DIRECTORY in ${MODEL_DIRECTORIES[@]}; do
-    mkdir -p $MODEL_DIR/$MODEL_DIRECTORY
+for dir in "${MODEL_DIRECTORIES[@]}"; do
+    mkdir -p "$MODEL_DIR/$dir"
 done
 
-echo "Installing requirements for custom nodes..."
-for CUSTOM_NODE_DIRECTORY in $CONFIG_DIR/custom_nodes/*;
-do
-    if [ -f "$CUSTOM_NODE_DIRECTORY/requirements.txt" ];
-    then
-        CUSTOM_NODE_NAME=${CUSTOM_NODE_DIRECTORY##*/}
-        CUSTOM_NODE_NAME=${CUSTOM_NODE_NAME//[-_]/ }
-        echo "Installing requirements for $CUSTOM_NODE_NAME..."
-        uv pip install --requirement "$CUSTOM_NODE_DIRECTORY/requirements.txt"
+# Install requirements for custom nodes
+shopt -s nullglob
+for node_dir in "$CONFIG_DIR/custom_nodes"/*; do
+    if [ -f "$node_dir/requirements.txt" ]; then
+        node_name="${node_dir##*/}"
+        echo "Installing requirements for ${node_name}..."
+        uv pip install --requirement "$node_dir/requirements.txt"
     fi
 done
+shopt -u nullglob
 
 echo "Starting ComfyUI..."
-"$@"
+exec "$@"

@@ -1,4 +1,4 @@
-ARG VERSION="v0.3.43"
+ARG VERSION="v0.6.0"
 
 # Runtime stage
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
@@ -26,14 +26,10 @@ RUN --mount=type=cache,target=/var/cache/apt \
     ffmpeg fonts-dejavu-core git libgl1 libgl1-mesa-glx libglib2.0-0 curl && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives
 
-COPY --from=ghcr.io/arsac/containers/python-wheels:latest /wheels /tmp/wheels
-
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --upgrade pip && \
-    uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128 && \
-    find /tmp/wheels -name "*.whl" -exec uv pip install {} \; && \
-    rm -rf /tmp/wheels && \
-    uv pip install flatbuffers numpy onnxruntime-gpu packaging protobuf pynvml sympy accelerate && \
+    uv pip install torch torchvision torchaudio xformers && \
+    uv pip install accelerate flatbuffers numpy onnxruntime-gpu packaging protobuf nvidia-ml-py sympy && \
     git clone --recursive --branch ${VERSION} --quiet https://github.com/comfyanonymous/ComfyUI.git /app && \
     uv pip install --requirement /app/requirements.txt && \
     mkdir -p /config /config/user /config/custom_nodes /input /output /models && \
@@ -63,10 +59,11 @@ VOLUME ["/config"]
 EXPOSE 8188
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 
-CMD ["uv", "run", "/app/main.py", \
+CMD ["python", "/app/main.py", \
     "--listen", "0.0.0.0", "--port", "8188", \
     "--base-directory", "/config", \
     "--user-directory", "/config/user", \
     "--input-directory", "/input", \
     "--output-directory", "/output", \
-    "--temp-directory", "/tmp"]
+    "--temp-directory", "/tmp", \
+    "--extra-model-paths-config", "/app/extra_model_paths.yaml"]

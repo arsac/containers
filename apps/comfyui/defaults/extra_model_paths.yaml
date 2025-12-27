@@ -19,7 +19,6 @@ comfyui:
   loras: models/loras/
   upscale_models: models/upscale_models/
   vae: models/vae/
-  text_encodings: models/text_encodings/
 
   vae_approx: models/vae_approx/
 
