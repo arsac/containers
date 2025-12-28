@@ -31,9 +31,17 @@ source "$VIRTUAL_ENV/bin/activate"
 VENV_SITE=$(python -c "import sysconfig; print(sysconfig.get_path('purelib'))")
 uv pip install --quiet --no-index --find-links="$VENV_SITE" uv 2>/dev/null || true
 
+# Ensure torch libraries are in library path
+TORCH_LIB=$(python -c "import torch; print(torch.__path__[0])")/lib
+export LD_LIBRARY_PATH="${TORCH_LIB}:${LD_LIBRARY_PATH:-}"
+
 # Log PyTorch version and constraints
 echo "PyTorch: $(python -c "import torch; print(torch.__version__)")"
 echo "Constraints: ${UV_CONSTRAINT:-none}"
+
+# Verify Hunyuan3D extensions
+python -c "import custom_rasterizer" && echo "Hunyuan3D: custom_rasterizer OK" || echo "Hunyuan3D: custom_rasterizer FAILED"
+python -c "import mesh_processor" && echo "Hunyuan3D: mesh_processor OK" || echo "Hunyuan3D: mesh_processor FAILED"
 
 # Install ComfyUI-Manager if not present
 if [ ! -d "$CONFIG_DIR/custom_nodes/ComfyUI-Manager" ]; then

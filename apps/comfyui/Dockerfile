@@ -1,14 +1,14 @@
 ARG VERSION="v0.6.0"
-ARG CUDA_VERSION="13.0.0"
-ARG CUDA_DISTRO="ubuntu22.04"
+ARG CUDA_VERSION="12.8.0"
+ARG CUDA_DISTRO="ubuntu24.04"
 ARG TORCH_CUDA="cu128"
-ARG PYTHON_VERSION="3.11"
+ARG PYTHON_VERSION="3.12"
 ARG TORCH_VERSION="2.9.1"
 ARG XFORMERS_VERSION="v0.0.33.post2"
 ARG SAGEATTENTION_VERSION="1.0.6"
 
 # =============================================================================
-# Builder stage - CUDA toolkit for compilation
+# Builder stage - CUDA toolkit for compilation (must match PyTorch CUDA version)
 # =============================================================================
 FROM nvidia/cuda:${CUDA_VERSION}-devel-${CUDA_DISTRO} AS builder
 
@@ -42,13 +42,14 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Install Python packages
 RUN uv pip install \
-        torch==${TORCH_VERSION} torchvision torchaudio \
-        xformers==${XFORMERS_VERSION} \
-        --index-url https://download.pytorch.org/whl/${TORCH_CUDA} && \
+    torch==${TORCH_VERSION} torchvision torchaudio \
+    xformers==${XFORMERS_VERSION} \
+    --index-url https://download.pytorch.org/whl/${TORCH_CUDA} && \
     uv pip install \
-        accelerate flatbuffers numpy onnxruntime-gpu \
-        packaging protobuf nvidia-ml-py sympy \
-        sageattention==${SAGEATTENTION_VERSION} && \
+    accelerate flatbuffers numpy onnxruntime-gpu \
+    packaging protobuf nvidia-ml-py sympy pybind11 \
+    sageattention==${SAGEATTENTION_VERSION} \
+    pygltflib trimesh opencv-python-headless && \
     rm -rf /root/.cache/uv
 
 # Clone ComfyUI and install requirements
@@ -56,17 +57,30 @@ RUN git clone --depth 1 --branch ${VERSION} --quiet \
         https://github.com/comfyanonymous/ComfyUI.git /app && \
     uv pip install --requirement /app/requirements.txt && \
     rm -rf /app/.git /root/.cache/uv && \
-    find /usr/local/lib/python${PYTHON_VERSION} -type d -name "__pycache__" \
-        -exec rm -rf {} + 2>/dev/null || true && \
     echo "Installed torch version:" && \
-    python -c "import torch; print(torch.__version__)" && \
-    echo "Package locations:" && \
-    python -c "import torch; print('torch:', torch.__file__)"
+    python -c "import torch; print(torch.__version__)"
+
+# Build Hunyuan3D extensions from source
+RUN git clone --depth 1 --filter=blob:none --sparse \
+        https://github.com/Tencent-Hunyuan/Hunyuan3D-2.git /tmp/hunyuan3d && \
+    cd /tmp/hunyuan3d && \
+    git sparse-checkout set hy3dgen/texgen/custom_rasterizer hy3dgen/texgen/differentiable_renderer && \
+    # Build custom_rasterizer
+    cd /tmp/hunyuan3d/hy3dgen/texgen/custom_rasterizer && \
+    python setup.py bdist_wheel && \
+    uv pip install dist/*.whl && \
+    # Build mesh_processor (differentiable_renderer)
+    cd /tmp/hunyuan3d/hy3dgen/texgen/differentiable_renderer && \
+    python setup.py build_ext --inplace && \
+    cp -r mesh_processor* /usr/local/lib/python${PYTHON_VERSION}/dist-packages/ && \
+    # Clean up build artifacts
+    rm -rf /tmp/hunyuan3d /root/.cache/uv && \
+    echo "custom_rasterizer and mesh_processor installed"
 
 # Generate constraints file to lock torch ecosystem packages
 RUN uv pip freeze | grep -E \
-        "^(torch|torchvision|torchaudio|xformers|triton|numpy|safetensors|tokenizers|accelerate|sageattention)==" \
-        > /app/constraints.txt && \
+    "^(torch|torchvision|torchaudio|xformers|triton|numpy|safetensors|tokenizers|accelerate|sageattention)==" \
+    > /app/constraints.txt && \
     echo "Generated constraints:" && cat /app/constraints.txt
 
 # =============================================================================
@@ -80,6 +94,7 @@ ARG PYTHON_VERSION
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    LD_LIBRARY_PATH=/usr/local/lib/python${PYTHON_VERSION}/dist-packages/torch/lib \
     UV_EXTRA_INDEX_URL="https://download.pytorch.org/whl/${TORCH_CUDA}" \
     UV_LINK_MODE=copy \
     UV_CONSTRAINT=/app/constraints.txt \
