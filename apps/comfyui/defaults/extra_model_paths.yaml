@@ -1,37 +1,43 @@
 comfyui:
   base_path: /
   download_model_base: /models
-  # You can use is_default to mark that these folders should be listed first, and used as the default dirs for eg downloads
   is_default: true
   custom_nodes: config/custom_nodes/
 
-  configs: models/configs/
-
+  # Core model folders
   checkpoints: models/checkpoints/
-  clip: models/clip/
-  clip_vision: models/clip_vision/
+  configs: models/configs/
+  vae: models/vae/
+  vae_approx: models/vae_approx/
+  loras: models/loras/
+  embeddings: models/embeddings/
 
-  controlnet: models/controlnet/
+  # Diffusion models (unet is legacy path)
   diffusion_models: |
     models/diffusion_models
     models/unet
-  embeddings: models/embeddings/
-  loras: models/loras/
-  upscale_models: models/upscale_models/
-  vae: models/vae/
 
-  vae_approx: models/vae_approx/
-
+  # Text encoders (clip is legacy path)
   text_encoders: |
     models/text_encoders
     models/clip
 
+  # Vision models
+  clip_vision: models/clip_vision/
+  controlnet: models/controlnet/
   style_models: models/style_models/
 
+  # Upscaling
+  upscale_models: models/upscale_models/
+  latent_upscale_models: models/latent_upscale_models/
+
+  # Other model types
   diffusers: models/diffusers/
-
   gligen: models/gligen/
-
   hypernetworks: models/hypernetworks/
   photomaker: models/photomaker/
   classifiers: models/classifiers/
+
+  # New in recent versions
+  model_patches: models/model_patches/
+  audio_encoders: models/audio_encoders/
