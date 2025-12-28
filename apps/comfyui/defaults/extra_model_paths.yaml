@@ -12,15 +12,11 @@ comfyui:
   loras: models/loras/
   embeddings: models/embeddings/
 
-  # Diffusion models (unet is legacy path)
-  diffusion_models: |
-    models/diffusion_models
-    models/unet
+  # Diffusion models
+  diffusion_models: models/diffusion_models/
 
-  # Text encoders (clip is legacy path)
-  text_encoders: |
-    models/text_encoders
-    models/clip
+  # Text encoders
+  text_encoders: models/text_encoders/
 
   # Vision models
   clip_vision: models/clip_vision/

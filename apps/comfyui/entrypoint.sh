@@ -56,7 +56,7 @@ if [ ! -f "$CM_CONFIG_DIR/config.ini" ]; then
     cat > "$CM_CONFIG_DIR/config.ini" << 'EOF'
 [default]
 use_uv = True
-security_level = normal
+security_level = weak
 file_logging = False
 EOF
     echo "Created ComfyUI-Manager config with uv enabled"
@@ -96,17 +96,19 @@ migrate_folder() {
     if [ -d "$src" ] && [ "$(ls -A "$src" 2>/dev/null)" ]; then
         echo "Migrating $src -> $dest"
         mkdir -p "$dest"
-        # Move files, don't overwrite existing
         for file in "$src"/*; do
             [ -e "$file" ] || continue
             basename="${file##*/}"
             if [ ! -e "$dest/$basename" ]; then
+                # Move file to destination
                 mv "$file" "$dest/"
             else
-                echo "  Skipping $basename (already exists in destination)"
+                # File exists in both places - remove source duplicate
+                echo "  Removing duplicate $basename (already in destination)"
+                rm -f "$file"
             fi
         done
-        # Remove source if empty
+        # Remove source directory if empty
         rmdir "$src" 2>/dev/null && echo "  Removed empty $src" || true
     fi
 }
@@ -121,7 +123,7 @@ for node_dir in "$CONFIG_DIR/custom_nodes"/*; do
     if [ -f "$node_dir/requirements.txt" ]; then
         node_name="${node_dir##*/}"
         echo "Installing requirements for ${node_name}..."
-        uv pip install --requirement "$node_dir/requirements.txt" || echo "Warning: Some packages failed to install for ${node_name}"
+        uv pip install --index-strategy unsafe-best-match --requirement "$node_dir/requirements.txt" || echo "Warning: Some packages failed to install for ${node_name}"
     fi
 done
 shopt -u nullglob
