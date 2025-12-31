@@ -64,9 +64,36 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     packaging protobuf nvidia-ml-py sympy pybind11 \
     sageattention==${SAGEATTENTION_VERSION} \
     pygltflib trimesh opencv-contrib-python-headless \
-    soundfile librosa pymeshlab && \
+    soundfile librosa pymeshlab insightface && \
     echo "Installed torch version:" && \
     python -c "import torch; print(torch.__version__)"
+
+# Build Hunyuan3D extensions from source
+ARG PYTHON_VERSION
+RUN --mount=type=cache,target=/root/.cache/uv \
+    git clone --depth 1 --filter=blob:none --sparse \
+    https://github.com/Tencent-Hunyuan/Hunyuan3D-2.git /tmp/hunyuan3d && \
+    cd /tmp/hunyuan3d && \
+    git sparse-checkout set hy3dgen/texgen/custom_rasterizer hy3dgen/texgen/differentiable_renderer && \
+    # Build custom_rasterizer
+    cd /tmp/hunyuan3d/hy3dgen/texgen/custom_rasterizer && \
+    python setup.py bdist_wheel && \
+    uv pip install dist/*.whl && \
+    # Build mesh_processor (differentiable_renderer)
+    cd /tmp/hunyuan3d/hy3dgen/texgen/differentiable_renderer && \
+    python setup.py build_ext --inplace && \
+    cp -r mesh_processor* /usr/local/lib/python${PYTHON_VERSION}/dist-packages/ && \
+    rm -rf /tmp/hunyuan3d && \
+    echo "Hunyuan3D: custom_rasterizer and mesh_processor installed"
+
+# Build diso (Differentiable Marching Cubes) for Hunyuan3D dmc algorithm
+RUN --mount=type=cache,target=/root/.cache/uv \
+    git clone --depth 1 --recursive https://github.com/SarahWeiii/diso.git /tmp/diso && \
+    cd /tmp/diso && \
+    FORCE_CUDA=1 python setup.py bdist_wheel && \
+    uv pip install dist/*.whl && \
+    rm -rf /tmp/diso && \
+    echo "diso installed"
 
 # Generate constraints file
 RUN uv pip freeze | grep -E \
