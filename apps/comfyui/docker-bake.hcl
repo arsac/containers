@@ -13,6 +13,14 @@ variable "SOURCE" {
   default = "https://github.com/comfyanonymous/ComfyUI"
 }
 
+variable "BASE_IMAGE" {
+  default = "ghcr.io/arsac/cuda-ml"
+}
+
+variable "BASE_VERSION" {
+  default = "rolling"
+}
+
 group "default" {
   targets = ["image-local"]
 }
@@ -20,7 +28,9 @@ group "default" {
 target "image" {
   inherits = ["docker-metadata-action"]
   args = {
-    VERSION = "${VERSION}"
+    VERSION      = "${VERSION}"
+    BASE_IMAGE   = "${BASE_IMAGE}"
+    BASE_VERSION = "${BASE_VERSION}"
   }
   labels = {
     "org.opencontainers.image.source" = "${SOURCE}"

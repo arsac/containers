@@ -1,7 +1,7 @@
 target "docker-metadata-action" {}
 
 variable "APP" {
-  default = "cuda-ml-base"
+  default = "cuda-ml"
 }
 
 variable "VERSION" {
@@ -19,6 +19,8 @@ group "default" {
 
 target "image" {
   inherits = ["docker-metadata-action"]
+  // Build the runtime stage (final stage) by default
+  target = "runtime"
   labels = {
     "org.opencontainers.image.source" = "${SOURCE}"
   }

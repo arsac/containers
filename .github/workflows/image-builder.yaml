@@ -1,21 +1,26 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-name: Application Builder
+name: Image Builder
 
 on:
   workflow_call:
     inputs:
-      app:
+      image:
         type: string
-        description: Application Name
+        description: Image Name
         required: true
+      path:
+        type: string
+        description: Base path (apps or base)
+        required: false
+        default: apps
       release:
         type: boolean
         description: Release
         required: true
 
 concurrency:
-  group: build-${{ inputs.app }}-${{ github.ref }}
+  group: build-${{ inputs.image }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -31,17 +36,18 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Check For Exising Application
+      - name: Check For Existing Application
         uses: ./.github/actions/app-exists
         id: app-exists
         with:
-          app: ${{ inputs.app }}
+          app: ${{ inputs.image }}
 
       - name: Get Application Options
         id: app-options
         uses: ./.github/actions/app-options
         with:
-          app: ${{ inputs.app }}
+          app: ${{ inputs.image }}
+          path: ${{ inputs.path }}
 
       - name: Get Application Versions
         uses: ./.github/actions/app-versions
@@ -57,7 +63,7 @@ jobs:
         with:
           flavor: latest=false
           images: |
-            ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}
+            ghcr.io/${{ github.repository_owner }}/${{ inputs.image }}
           tags: |
             type=semver,pattern={{version}},value=${{ steps.app-versions.outputs.semantic }}
             type=semver,pattern={{major}}.{{minor}},value=${{ steps.app-versions.outputs.semantic }},enable=${{ steps.app-versions.outputs.is-valid-semver }}
@@ -68,7 +74,7 @@ jobs:
       - name: Upload Bake Metadata
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ${{ inputs.app }}-bake-metadata
+          name: ${{ inputs.image }}-bake-metadata
           path: ${{ steps.meta.outputs.bake-file }}
           if-no-files-found: error
           retention-days: 1
@@ -121,7 +127,8 @@ jobs:
         id: app-options
         uses: ./.github/actions/app-options
         with:
-          app: ${{ inputs.app }}
+          app: ${{ inputs.image }}
+          path: ${{ inputs.path }}
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
@@ -133,7 +140,7 @@ jobs:
       - name: Download Bake Metadata
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: ${{ inputs.app }}-bake-metadata
+          name: ${{ inputs.image }}-bake-metadata
           path: ${{ runner.temp }}
 
       - name: Setup Docker Buildx
@@ -154,9 +161,9 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: /tmp/.buildx-cache
-          key: buildx-${{ inputs.app }}-${{ steps.target.outputs.arch }}-${{ github.sha }}
+          key: buildx-${{ inputs.image }}-${{ steps.target.outputs.arch }}-${{ github.sha }}
           restore-keys: |
-            buildx-${{ inputs.app }}-${{ steps.target.outputs.arch }}-
+            buildx-${{ inputs.image }}-${{ steps.target.outputs.arch }}-
 
       - name: Check Disk Space After Cache Restore
         run: |
@@ -176,7 +183,7 @@ jobs:
 
       - name: Add Include Directory to Build Context
         run: |
-          rsync -a --ignore-existing --progress ./include/ ./apps/${{ inputs.app }}/
+          rsync -a --ignore-existing --progress ./include/ ./${{ inputs.path }}/${{ inputs.image }}/
 
       - name: Prune Docker Builder
         run: |
@@ -194,17 +201,17 @@ jobs:
             *.args.VENDOR=${{ github.repository_owner }}
             *.cache-from=type=local,src=/tmp/.buildx-cache
             *.cache-to=type=local,dest=/tmp/.buildx-cache-new,mode=min
-            *.labels.org.opencontainers.image.title=${{ inputs.app }}
-            *.labels.org.opencontainers.image.url=https://ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}
+            *.labels.org.opencontainers.image.title=${{ inputs.image }}
+            *.labels.org.opencontainers.image.url=https://ghcr.io/${{ github.repository_owner }}/${{ inputs.image }}
             *.labels.org.opencontainers.image.version=${{ steps.app-options.outputs.version }}
             *.labels.org.opencontainers.image.revision=${{ github.sha }}
             *.labels.org.opencontainers.image.vendor=${{ github.repository_owner }}
-            ${{ inputs.release && format('*.output=type=image,name=ghcr.io/{0}/{1},push-by-digest=true,name-canonical=true,push=true', github.repository_owner, inputs.app) || '*.output=type=docker' }}
+            ${{ inputs.release && format('*.output=type=image,name=ghcr.io/{0}/{1},push-by-digest=true,name-canonical=true,push=true', github.repository_owner, inputs.image) || '*.output=type=docker' }}
             *.platform=${{ matrix.platform }}
             *.tags=
           source: .
           targets: image
-          workdir: ./apps/${{ inputs.app }}
+          workdir: ./${{ inputs.path }}/${{ inputs.image }}
 
       - name: Move buildx cache
         run: |
@@ -215,7 +222,7 @@ jobs:
         name: Run Application Tests
         uses: ./.github/actions/app-tests
         with:
-          app: ${{ inputs.app }}
+          app: ${{ inputs.image }}
           image: ${{ fromJSON(steps.bake.outputs.metadata).image['containerimage.config.digest'] }}
           token: ${{ github.token }}
 
@@ -230,7 +237,7 @@ jobs:
         name: Upload Digest
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ${{ inputs.app }}-digests-${{ steps.target.outputs.arch }}
+          name: ${{ inputs.image }}-digests-${{ steps.target.outputs.arch }}
           path: ${{ runner.temp }}/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -251,14 +258,14 @@ jobs:
       - name: Download Bake Metadata
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: ${{ inputs.app }}-bake-metadata
+          name: ${{ inputs.image }}-bake-metadata
           path: ${{ runner.temp }}
 
       - name: Download Digests
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: ${{ runner.temp }}/digests
-          pattern: ${{ inputs.app }}-digests-*
+          pattern: ${{ inputs.image }}-digests-*
           merge-multiple: true
 
       - name: Login to GitHub Container Registry
@@ -272,18 +279,18 @@ jobs:
         working-directory: ${{ runner.temp }}/digests
         run: |
           docker buildx imagetools create \
-              $(jq --raw-output --compact-output '.target."docker-metadata-action".tags | map(select(startswith("ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}")) | "-t " + .) | join(" ")' ${{ runner.temp }}/docker-metadata-action-bake.json) \
-              $(printf 'ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}@sha256:%s ' *)
+              $(jq --raw-output --compact-output '.target."docker-metadata-action".tags | map(select(startswith("ghcr.io/${{ github.repository_owner }}/${{ inputs.image }}")) | "-t " + .) | join(" ")' ${{ runner.temp }}/docker-metadata-action-bake.json) \
+              $(printf 'ghcr.io/${{ github.repository_owner }}/${{ inputs.image }}@sha256:%s ' *)
 
       - name: Inspect Image
         run: |
-          docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}:$(jq --raw-output '.target."docker-metadata-action".args.DOCKER_META_VERSION' ${{ runner.temp }}/docker-metadata-action-bake.json)
+          docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/${{ inputs.image }}:$(jq --raw-output '.target."docker-metadata-action".args.DOCKER_META_VERSION' ${{ runner.temp }}/docker-metadata-action-bake.json)
 
       - name: Export Digest
         id: digest
         run: |
           TAG=$(jq --raw-output '.target."docker-metadata-action".args.DOCKER_META_VERSION' ${{ runner.temp }}/docker-metadata-action-bake.json)
-          DIGEST=$(docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}:${TAG} --format '{{ json . }}' | jq --raw-output '.manifest.digest')
+          DIGEST=$(docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/${{ inputs.image }}:${TAG} --format '{{ json . }}' | jq --raw-output '.manifest.digest')
           echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
 
   attest:
@@ -311,20 +318,20 @@ jobs:
         uses: anchore/sbom-action@e11c554f704a0b820cbf8c51673f6945e0731532 # v0.20.0
         with:
           dependency-snapshot: true
-          image: ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}@${{ needs.release.outputs.digest }}
+          image: ghcr.io/${{ github.repository_owner }}/${{ inputs.image }}@${{ needs.release.outputs.digest }}
 
       - name: Attestation
         uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669fd # v2.3.0
         with:
           push-to-registry: true
-          subject-name: ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}
+          subject-name: ghcr.io/${{ github.repository_owner }}/${{ inputs.image }}
           subject-digest: ${{ needs.release.outputs.digest }}
 
       - name: Verify Attestation
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          gh attestation verify --repo ${{ github.repository }} oci://ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}@${{ needs.release.outputs.digest }}
+          gh attestation verify --repo ${{ github.repository }} oci://ghcr.io/${{ github.repository_owner }}/${{ inputs.image }}@${{ needs.release.outputs.digest }}
 
   announce:
     if: ${{ inputs.release && needs.plan.outputs.app-exists != 'true' }}
@@ -348,7 +355,8 @@ jobs:
         id: app-options
         uses: ./.github/actions/app-options
         with:
-          app: ${{ inputs.app }}
+          app: ${{ inputs.image }}
+          path: ${{ inputs.path }}
 
       - name: Get Release Tag
         uses: ./.github/actions/release-tag
@@ -365,7 +373,7 @@ jobs:
 
             ## 📦 Application
 
-            **Name**: [${{ inputs.app }}](https://github.com/${{ github.repository }}/pkgs/container/${{ inputs.app }})
+            **Name**: [${{ inputs.image }}](https://github.com/${{ github.repository }}/pkgs/container/${{ inputs.image }})
             **Source**: <${{ steps.app-options.outputs.source }}>
           tag: ${{ steps.release.outputs.tag }}
           token: ${{ steps.app-token.outputs.token }}
@@ -387,7 +395,8 @@ jobs:
         id: app-options
         uses: ./.github/actions/app-options
         with:
-          app: ${{ inputs.app }}
+          app: ${{ inputs.image }}
+          path: ${{ inputs.path }}
 
       - if: ${{ contains(needs.*.result, 'failure') }}
         name: Send Discord Webhook
@@ -395,7 +404,7 @@ jobs:
         with:
           color: "0xFF0000"
           description: |
-            Application: `${{ inputs.app }}`
+            Application: `${{ inputs.image }}`
             Version: `${{ steps.app-options.outputs.version }}`
             [Rebuild](${{ github.server_url }}/${{ github.repository }}/actions/workflows/release.yaml)
           nodetail: true

@@ -5,12 +5,20 @@ name: Release
 on:
   push:
     branches: ["main"]
-    paths: ["apps/**"]
+    paths: ["apps/**", "base/**"]
   workflow_dispatch:
     inputs:
-      app:
+      type:
+        type: choice
+        description: Image type
+        required: true
+        default: apps
+        options:
+          - apps
+          - base
+      image:
         type: string
-        description: Application Name
+        description: Image name (e.g., "comfyui" or "cuda-ml")
         required: true
       release:
         type: boolean
@@ -27,42 +35,31 @@ jobs:
     name: Prepare
     runs-on: ubuntu-latest
     outputs:
-      changed-files: ${{ steps.changed-files.outputs.changed_files }}
+      changed-apps: ${{ steps.changed-apps.outputs.changed_files }}
+      changed-bases: ${{ steps.changed-bases.outputs.changed_files }}
     steps:
-      - name: Get Changed Files
-        id: changed-files
+      - name: Get Changed Apps
+        id: changed-apps
         uses: bjw-s-labs/action-changed-files@930cef8463348e168cab7235c47fe95a7a235f65 # v0.3.3
         with:
           path: apps
           include_only_directories: true
           max_depth: 1
 
-  changed:
-    if: ${{ needs.prepare.outputs.changed-files != '[]' || github.event_name == 'workflow_dispatch' }}
-    name: Get Changed Apps
-    needs: ["prepare"]
-    runs-on: ubuntu-latest
-    outputs:
-      apps: ${{ steps.apps.outputs.apps }}
-    steps:
-      - name: Get Apps
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
-        id: apps
-        env:
-          APPS: ${{ github.event_name == 'workflow_dispatch' && inputs.app || join(fromJSON(needs.prepare.outputs.changed-files), ' ') }}
+      - name: Get Changed Bases
+        id: changed-bases
+        uses: bjw-s-labs/action-changed-files@930cef8463348e168cab7235c47fe95a7a235f65 # v0.3.3
         with:
-          script: |
-            const { APPS } = process.env;
-            const appsToBuild = APPS.split(' ').filter(Boolean);
-            core.setOutput('apps', JSON.stringify(appsToBuild));
-            console.log('apps:', JSON.stringify(appsToBuild, null, 2));
-            core.summary.addHeading('Apps to build:').addList(appsToBuild).write();
+          path: base
+          include_only_directories: true
+          max_depth: 1
 
-  build:
-    if: ${{ needs.changed.outputs.apps != '[]' }}
-    name: Build ${{ matrix.app }}
-    needs: ["changed"]
-    uses: ./.github/workflows/app-builder.yaml
+  # Build base images first (other images may depend on them)
+  build-bases:
+    if: ${{ needs.prepare.outputs.changed-bases != '[]' || (github.event_name == 'workflow_dispatch' && inputs.type == 'base') }}
+    name: Build Base ${{ matrix.base }}
+    needs: ["prepare"]
+    uses: ./.github/workflows/image-builder.yaml
     permissions:
       attestations: write
       contents: write
@@ -72,17 +69,41 @@ jobs:
     secrets: inherit
     strategy:
       matrix:
-        app: ${{ fromJSON(needs.changed.outputs.apps) }}
+        base: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', inputs.image)) || fromJSON(needs.prepare.outputs.changed-bases) }}
+      fail-fast: false
+    with:
+      image: ${{ matrix.base }}
+      path: base
+      release: ${{ github.event_name == 'workflow_dispatch' && inputs.release || github.event_name == 'push' }}
+
+  # Build apps after base images complete
+  build-apps:
+    # Run even if build-bases was skipped (no base changes)
+    if: ${{ always() && !failure() && !cancelled() && (needs.prepare.outputs.changed-apps != '[]' || (github.event_name == 'workflow_dispatch' && inputs.type == 'apps')) }}
+    name: Build ${{ matrix.app }}
+    needs: ["prepare", "build-bases"]
+    uses: ./.github/workflows/image-builder.yaml
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
+      packages: write
+      security-events: write
+    secrets: inherit
+    strategy:
+      matrix:
+        app: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', inputs.image)) || fromJSON(needs.prepare.outputs.changed-apps) }}
       fail-fast: false
       max-parallel: 4
     with:
-      app: ${{ matrix.app }}
+      image: ${{ matrix.app }}
+      path: apps
       release: ${{ github.event_name == 'workflow_dispatch' && inputs.release || github.event_name == 'push' }}
 
   status:
-    if: ${{ !cancelled() }}
+    if: ${{ always() }}
     name: Build Success
-    needs: ["build"]
+    needs: ["build-bases", "build-apps"]
     runs-on: ubuntu-latest
     steps:
       - name: Any jobs failed?

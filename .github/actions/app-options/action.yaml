@@ -7,6 +7,10 @@ inputs:
   app:
     description: Application Name
     required: true
+  path:
+    description: Base path (apps or base)
+    required: false
+    default: apps
 
 outputs:
   platforms:
@@ -25,7 +29,7 @@ runs:
     - name: Application Options
       id: options
       shell: bash
-      working-directory: ./apps/${{ inputs.app }}
+      working-directory: ./${{ inputs.path }}/${{ inputs.app }}
       run: |
         PLATFORMS=$(\
             docker buildx bake image-all --print --progress=quiet \

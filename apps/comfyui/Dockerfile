@@ -3,21 +3,20 @@ ARG CUDA_VERSION="12.8.0"
 ARG CUDA_DISTRO="ubuntu24.04"
 ARG TORCH_CUDA="cu128"
 ARG PYTHON_VERSION="3.12"
-ARG TORCH_VERSION="2.9.1"
-ARG XFORMERS_VERSION="v0.0.33.post2"
-ARG SAGEATTENTION_VERSION="1.0.6"
+ARG BASE_IMAGE="ghcr.io/arsac/cuda-ml"
+ARG BASE_VERSION="rolling"
 
 # =============================================================================
-# Builder stage - CUDA toolkit for compilation (must match PyTorch CUDA version)
+# Builder stage - CUDA devel for compiling extensions
+# Uses base image for Python packages, adds app-specific CUDA builds
 # =============================================================================
+FROM ${BASE_IMAGE}:${BASE_VERSION} AS base
+
 FROM nvidia/cuda:${CUDA_VERSION}-devel-${CUDA_DISTRO} AS builder
 
 ARG VERSION
 ARG TORCH_CUDA
 ARG PYTHON_VERSION
-ARG TORCH_VERSION
-ARG XFORMERS_VERSION
-ARG SAGEATTENTION_VERSION
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -43,19 +42,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Install Python packages (cache mounts persist across builds)
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=cache,target=/root/.cache/pip \
-    uv pip install \
-    torch==${TORCH_VERSION} torchvision torchaudio \
-    xformers==${XFORMERS_VERSION} \
-    --index-url https://download.pytorch.org/whl/${TORCH_CUDA} && \
-    uv pip install \
-    accelerate flatbuffers numpy onnxruntime-gpu \
-    packaging protobuf nvidia-ml-py sympy pybind11 \
-    sageattention==${SAGEATTENTION_VERSION} \
-    pygltflib trimesh opencv-contrib-python-headless \
-    soundfile librosa pymeshlab
+# Copy Python packages from base image (PyTorch, xformers, sageattention, etc.)
+COPY --from=base /usr/local/lib/python${PYTHON_VERSION} /usr/local/lib/python${PYTHON_VERSION}
+COPY --from=base /usr/lib/python3/dist-packages /usr/lib/python3/dist-packages
+COPY --from=base /constraints.txt /constraints.txt
+
+ENV UV_CONSTRAINT=/constraints.txt \
+    PIP_CONSTRAINT=/constraints.txt
 
 # Clone ComfyUI and install requirements
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -94,13 +87,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     rm -rf /tmp/diso && \
     echo "diso installed (import test skipped - requires GPU)"
 
-# Generate constraints file to lock torch ecosystem packages
+# Update constraints file with new packages
 RUN uv pip freeze | grep -E \
     "^(torch|torchvision|torchaudio|xformers|triton|numpy|safetensors|tokenizers|accelerate|sageattention|custom-rasterizer)==" \
     > /app/constraints.txt && \
     echo "Generated constraints:" && cat /app/constraints.txt
 
-# Aggressive cleanup to reduce image size (cache mounts are external, not in image)
+# Cleanup to reduce image size
 RUN find /usr/local/lib/python${PYTHON_VERSION} -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && \
     find /usr/local/lib/python${PYTHON_VERSION} -type d -name 'tests' -exec rm -rf {} + 2>/dev/null || true && \
     find /usr/local/lib/python${PYTHON_VERSION} -type d -name 'test' -exec rm -rf {} + 2>/dev/null || true && \
@@ -110,37 +103,18 @@ RUN find /usr/local/lib/python${PYTHON_VERSION} -type d -name '__pycache__' -exe
     rm -rf /tmp/* /var/tmp/*
 
 # =============================================================================
-# Runtime stage - minimal CUDA runtime
+# Runtime stage - use base image with app-specific additions
 # =============================================================================
-FROM nvidia/cuda:${CUDA_VERSION}-runtime-${CUDA_DISTRO}
+FROM ${BASE_IMAGE}:${BASE_VERSION}
 
 ARG TORCH_CUDA
 ARG PYTHON_VERSION
 
-ENV DEBIAN_FRONTEND=noninteractive \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    LD_LIBRARY_PATH=/usr/local/lib/python${PYTHON_VERSION}/dist-packages/torch/lib \
-    UV_EXTRA_INDEX_URL="https://download.pytorch.org/whl/${TORCH_CUDA}" \
-    UV_LINK_MODE=copy \
-    UV_CONSTRAINT=/app/constraints.txt \
+ENV UV_CONSTRAINT=/app/constraints.txt \
     PIP_CONSTRAINT=/app/constraints.txt
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python${PYTHON_VERSION} python${PYTHON_VERSION}-venv \
-    ffmpeg fonts-dejavu-core git libgl1 libopengl0 libglib2.0-0 libsndfile1 curl ca-certificates tini \
-    gcc && \
-    ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python && \
-    ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python3 && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
-
-# Copy all Python packages from builder
-COPY --from=builder /usr/local/lib/python${PYTHON_VERSION} /usr/local/lib/python${PYTHON_VERSION}
-COPY --from=builder /usr/lib/python3/dist-packages /usr/lib/python3/dist-packages
+# Copy app-specific Python packages (Hunyuan3D extensions, diso, ComfyUI deps)
+COPY --from=builder /usr/local/lib/python${PYTHON_VERSION}/dist-packages /usr/local/lib/python${PYTHON_VERSION}/dist-packages
 
 # Copy ComfyUI
 COPY --from=builder /app /app
@@ -148,10 +122,11 @@ COPY --from=builder /app /app
 # Copy configuration files
 COPY defaults/extra_model_paths.yaml /app/extra_model_paths.yaml
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
 
-# Create directories and symlinks
-RUN mkdir -p /config /config/user /config/custom_nodes /config/.venv /config/web /input /output /models && \
+USER root
+RUN chmod +x /entrypoint.sh && \
+    # Create directories and symlinks
+    mkdir -p /config /config/user /config/custom_nodes /config/.venv /config/web /input /output /models && \
     chmod -R 755 /config /input /output /models && \
     ln -sf /config/web /app/web
 
@@ -163,9 +138,7 @@ ENV CONFIG_DIR=/config \
     OUTPUT_DIR=/output \
     INPUT_DIR=/input \
     VIRTUAL_ENV=/config/.venv \
-    HOME="/config" \
-    # Reduce VRAM fragmentation
-    PYTORCH_ALLOC_CONF=expandable_segments:True
+    HOME="/config"
 
 USER nobody:nogroup
 WORKDIR /config
