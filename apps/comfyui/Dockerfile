@@ -43,8 +43,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Install Python packages
-RUN uv pip install \
+# Install Python packages (cache mounts persist across builds)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,target=/root/.cache/pip \
+    uv pip install \
     torch==${TORCH_VERSION} torchvision torchaudio \
     xformers==${XFORMERS_VERSION} \
     --index-url https://download.pytorch.org/whl/${TORCH_CUDA} && \
@@ -53,19 +55,20 @@ RUN uv pip install \
     packaging protobuf nvidia-ml-py sympy pybind11 \
     sageattention==${SAGEATTENTION_VERSION} \
     pygltflib trimesh opencv-contrib-python-headless \
-    soundfile librosa pymeshlab && \
-    rm -rf /root/.cache/uv /root/.cache/pip /tmp/*
+    soundfile librosa pymeshlab
 
 # Clone ComfyUI and install requirements
-RUN git clone --depth 1 --branch ${VERSION} --quiet \
+RUN --mount=type=cache,target=/root/.cache/uv \
+    git clone --depth 1 --branch ${VERSION} --quiet \
     https://github.com/comfyanonymous/ComfyUI.git /app && \
     uv pip install --requirement /app/requirements.txt && \
-    rm -rf /app/.git /root/.cache/uv && \
+    rm -rf /app/.git && \
     echo "Installed torch version:" && \
     python -c "import torch; print(torch.__version__)"
 
 # Build Hunyuan3D extensions from source
-RUN git clone --depth 1 --filter=blob:none --sparse \
+RUN --mount=type=cache,target=/root/.cache/uv \
+    git clone --depth 1 --filter=blob:none --sparse \
     https://github.com/Tencent-Hunyuan/Hunyuan3D-2.git /tmp/hunyuan3d && \
     cd /tmp/hunyuan3d && \
     git sparse-checkout set hy3dgen/texgen/custom_rasterizer hy3dgen/texgen/differentiable_renderer && \
@@ -78,16 +81,17 @@ RUN git clone --depth 1 --filter=blob:none --sparse \
     python setup.py build_ext --inplace && \
     cp -r mesh_processor* /usr/local/lib/python${PYTHON_VERSION}/dist-packages/ && \
     # Clean up build artifacts
-    rm -rf /tmp/hunyuan3d /root/.cache/uv && \
+    rm -rf /tmp/hunyuan3d && \
     echo "custom_rasterizer and mesh_processor installed"
 
 # Install diso (Differentiable Marching Cubes) for Hunyuan3D dmc algorithm
 # Build from source with FORCE_CUDA=1 since no GPU available during build
-RUN git clone --depth 1 --recursive https://github.com/SarahWeiii/diso.git /tmp/diso && \
+RUN --mount=type=cache,target=/root/.cache/uv \
+    git clone --depth 1 --recursive https://github.com/SarahWeiii/diso.git /tmp/diso && \
     cd /tmp/diso && \
     FORCE_CUDA=1 python setup.py bdist_wheel && \
     uv pip install dist/*.whl && \
-    rm -rf /tmp/diso /root/.cache/uv && \
+    rm -rf /tmp/diso && \
     echo "diso installed (import test skipped - requires GPU)"
 
 # Generate constraints file to lock torch ecosystem packages
@@ -96,14 +100,14 @@ RUN uv pip freeze | grep -E \
     > /app/constraints.txt && \
     echo "Generated constraints:" && cat /app/constraints.txt
 
-# Aggressive cleanup to reduce image size
+# Aggressive cleanup to reduce image size (cache mounts are external, not in image)
 RUN find /usr/local/lib/python${PYTHON_VERSION} -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && \
     find /usr/local/lib/python${PYTHON_VERSION} -type d -name 'tests' -exec rm -rf {} + 2>/dev/null || true && \
     find /usr/local/lib/python${PYTHON_VERSION} -type d -name 'test' -exec rm -rf {} + 2>/dev/null || true && \
     find /usr/local/lib/python${PYTHON_VERSION} -type d -name 'docs' -exec rm -rf {} + 2>/dev/null || true && \
     find /usr/local/lib/python${PYTHON_VERSION} -name '*.pyc' -delete 2>/dev/null || true && \
     find /usr/local/lib/python${PYTHON_VERSION} -name '*.so' -exec strip --strip-unneeded {} \; 2>/dev/null || true && \
-    rm -rf /root/.cache /root/.triton /tmp/* /var/tmp/*
+    rm -rf /tmp/* /var/tmp/*
 
 # =============================================================================
 # Runtime stage - minimal CUDA runtime

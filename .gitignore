@@ -4,3 +4,5 @@ docker-bake.json
 
 .idea
 .artifacts
+.mcp.json
+tmp/
