@@ -23,6 +23,14 @@ fi
 # Create required directories
 mkdir -p "$CONFIG_DIR/custom_nodes" "$USER_DIR"
 
+# Symlink /config/models -> /models so custom nodes using $HOME/models work correctly
+if [ -d "$CONFIG_DIR/models" ] && [ ! -L "$CONFIG_DIR/models" ]; then
+    echo "Warning: $CONFIG_DIR/models exists as a directory, not creating symlink"
+    echo "Consider moving contents to $MODEL_DIR and removing $CONFIG_DIR/models"
+else
+    ln -sfn "$MODEL_DIR" "$CONFIG_DIR/models"
+fi
+
 # Create/reuse venv with system site-packages (inherits torch, etc.)
 uv venv --system-site-packages --link-mode=copy --allow-existing "$VIRTUAL_ENV"
 source "$VIRTUAL_ENV/bin/activate"
@@ -42,6 +50,7 @@ echo "Constraints: ${UV_CONSTRAINT:-none}"
 # Verify Hunyuan3D extensions
 python -c "import custom_rasterizer" && echo "Hunyuan3D: custom_rasterizer OK" || echo "Hunyuan3D: custom_rasterizer FAILED"
 python -c "import mesh_processor" && echo "Hunyuan3D: mesh_processor OK" || echo "Hunyuan3D: mesh_processor FAILED"
+python -c "from diso import DiffDMC" && echo "Hunyuan3D: diso (dmc) OK" || echo "Hunyuan3D: diso (dmc) FAILED"
 
 # Install ComfyUI-Manager if not present
 if [ ! -d "$CONFIG_DIR/custom_nodes/ComfyUI-Manager" ]; then

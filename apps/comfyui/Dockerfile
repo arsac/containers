@@ -22,6 +22,9 @@ ARG SAGEATTENTION_VERSION
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    CUDA_HOME=/usr/local/cuda \
+    PATH=/usr/local/cuda/bin:${PATH} \
+    CPLUS_INCLUDE_PATH=/usr/local/cuda/include \
     TORCH_CUDA_ARCH_LIST="12.0" \
     UV_SYSTEM_PYTHON=1 \
     UV_BREAK_SYSTEM_PACKAGES=1 \
@@ -78,6 +81,15 @@ RUN git clone --depth 1 --filter=blob:none --sparse \
     rm -rf /tmp/hunyuan3d /root/.cache/uv && \
     echo "custom_rasterizer and mesh_processor installed"
 
+# Install diso (Differentiable Marching Cubes) for Hunyuan3D dmc algorithm
+# Build from source with FORCE_CUDA=1 since no GPU available during build
+RUN git clone --depth 1 --recursive https://github.com/SarahWeiii/diso.git /tmp/diso && \
+    cd /tmp/diso && \
+    FORCE_CUDA=1 python setup.py bdist_wheel && \
+    uv pip install dist/*.whl && \
+    rm -rf /tmp/diso /root/.cache/uv && \
+    echo "diso installed (import test skipped - requires GPU)"
+
 # Generate constraints file to lock torch ecosystem packages
 RUN uv pip freeze | grep -E \
     "^(torch|torchvision|torchaudio|xformers|triton|numpy|safetensors|tokenizers|accelerate|sageattention|custom-rasterizer)==" \
@@ -109,7 +121,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python${PYTHON_VERSION} python${PYTHON_VERSION}-venv \
-    ffmpeg fonts-dejavu-core git libgl1 libopengl0 libglib2.0-0 libsndfile1 curl ca-certificates tini && \
+    ffmpeg fonts-dejavu-core git libgl1 libopengl0 libglib2.0-0 libsndfile1 curl ca-certificates tini \
+    gcc && \
     ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python && \
     ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python3 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -129,7 +142,7 @@ COPY defaults/extra_model_paths.yaml /app/extra_model_paths.yaml
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Create directories and symlink for custom node web extensions
+# Create directories and symlinks
 RUN mkdir -p /config /config/user /config/custom_nodes /config/.venv /config/web /input /output /models && \
     chmod -R 755 /config /input /output /models && \
     ln -sf /config/web /app/web
@@ -142,7 +155,9 @@ ENV CONFIG_DIR=/config \
     OUTPUT_DIR=/output \
     INPUT_DIR=/input \
     VIRTUAL_ENV=/config/.venv \
-    HOME="/config"
+    HOME="/config" \
+    # Reduce VRAM fragmentation
+    PYTORCH_ALLOC_CONF=expandable_segments:True
 
 USER nobody:nogroup
 WORKDIR /config
