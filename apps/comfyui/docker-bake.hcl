@@ -17,10 +17,6 @@ variable "BASE_IMAGE" {
   default = "ghcr.io/arsac/cuda-ml"
 }
 
-variable "BASE_VERSION" {
-  default = "rolling"
-}
-
 group "default" {
   targets = ["image-local"]
 }
@@ -28,9 +24,8 @@ group "default" {
 target "image" {
   inherits = ["docker-metadata-action"]
   args = {
-    VERSION      = "${VERSION}"
-    BASE_IMAGE   = "${BASE_IMAGE}"
-    BASE_VERSION = "${BASE_VERSION}"
+    VERSION    = "${VERSION}"
+    BASE_IMAGE = "${BASE_IMAGE}"
   }
   labels = {
     "org.opencontainers.image.source" = "${SOURCE}"
@@ -39,8 +34,8 @@ target "image" {
 
 target "image-local" {
   inherits = ["image"]
-  output = ["type=docker"]
-  tags = ["${APP}:${VERSION}"]
+  output   = ["type=docker"]
+  tags     = ["${APP}:${VERSION}"]
 }
 
 target "image-all" {

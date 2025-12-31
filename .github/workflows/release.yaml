@@ -55,6 +55,7 @@ jobs:
           max_depth: 1
 
   # Build base images first (other images may depend on them)
+  # Runtime variant
   build-bases:
     if: ${{ needs.prepare.outputs.changed-bases != '[]' || (github.event_name == 'workflow_dispatch' && inputs.type == 'base') }}
     name: Build Base ${{ matrix.base }}
@@ -76,12 +77,35 @@ jobs:
       path: base
       release: ${{ github.event_name == 'workflow_dispatch' && inputs.release || github.event_name == 'push' }}
 
+  # Devel variant (for base images only)
+  build-bases-devel:
+    if: ${{ needs.prepare.outputs.changed-bases != '[]' || (github.event_name == 'workflow_dispatch' && inputs.type == 'base') }}
+    name: Build Base ${{ matrix.base }} (devel)
+    needs: ["prepare"]
+    uses: ./.github/workflows/image-builder.yaml
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
+      packages: write
+      security-events: write
+    secrets: inherit
+    strategy:
+      matrix:
+        base: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', inputs.image)) || fromJSON(needs.prepare.outputs.changed-bases) }}
+      fail-fast: false
+    with:
+      image: ${{ matrix.base }}
+      path: base
+      variant: devel
+      release: ${{ github.event_name == 'workflow_dispatch' && inputs.release || github.event_name == 'push' }}
+
   # Build apps after base images complete
   build-apps:
     # Run even if build-bases was skipped (no base changes)
     if: ${{ always() && !failure() && !cancelled() && (needs.prepare.outputs.changed-apps != '[]' || (github.event_name == 'workflow_dispatch' && inputs.type == 'apps')) }}
     name: Build ${{ matrix.app }}
-    needs: ["prepare", "build-bases"]
+    needs: ["prepare", "build-bases", "build-bases-devel"]
     uses: ./.github/workflows/image-builder.yaml
     permissions:
       attestations: write
@@ -103,7 +127,7 @@ jobs:
   status:
     if: ${{ always() }}
     name: Build Success
-    needs: ["build-bases", "build-apps"]
+    needs: ["build-bases", "build-bases-devel", "build-apps"]
     runs-on: ubuntu-latest
     steps:
       - name: Any jobs failed?

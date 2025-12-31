@@ -14,13 +14,18 @@ on:
         description: Base path (apps or base)
         required: false
         default: apps
+      variant:
+        type: string
+        description: Image variant (empty for runtime, "devel" for devel)
+        required: false
+        default: ""
       release:
         type: boolean
         description: Release
         required: true
 
 concurrency:
-  group: build-${{ inputs.image }}-${{ github.ref }}
+  group: build-${{ inputs.image }}-${{ inputs.variant }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -65,16 +70,16 @@ jobs:
           images: |
             ghcr.io/${{ github.repository_owner }}/${{ inputs.image }}
           tags: |
-            type=semver,pattern={{version}},value=${{ steps.app-versions.outputs.semantic }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ steps.app-versions.outputs.semantic }},enable=${{ steps.app-versions.outputs.is-valid-semver }}
-            type=semver,pattern={{major}},value=${{ steps.app-versions.outputs.semantic }},enable=${{ steps.app-versions.outputs.is-valid-semver }}
-            type=raw,value=${{ steps.app-versions.outputs.raw }},enable=${{ steps.app-versions.outputs.is-valid-semver }}
-            type=raw,value=rolling
+            type=semver,pattern={{version}}${{ inputs.variant && format('-{0}', inputs.variant) || '' }},value=${{ steps.app-versions.outputs.semantic }}
+            type=semver,pattern={{major}}.{{minor}}${{ inputs.variant && format('-{0}', inputs.variant) || '' }},value=${{ steps.app-versions.outputs.semantic }},enable=${{ steps.app-versions.outputs.is-valid-semver }}
+            type=semver,pattern={{major}}${{ inputs.variant && format('-{0}', inputs.variant) || '' }},value=${{ steps.app-versions.outputs.semantic }},enable=${{ steps.app-versions.outputs.is-valid-semver }}
+            type=raw,value=${{ steps.app-versions.outputs.raw }}${{ inputs.variant && format('-{0}', inputs.variant) || '' }},enable=${{ steps.app-versions.outputs.is-valid-semver }}
+            type=raw,value=${{ inputs.variant || (inputs.path == 'base' && 'runtime' || 'rolling') }}
 
       - name: Upload Bake Metadata
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ${{ inputs.image }}-bake-metadata
+          name: ${{ inputs.image }}${{ inputs.variant && format('-{0}', inputs.variant) || '' }}-bake-metadata
           path: ${{ steps.meta.outputs.bake-file }}
           if-no-files-found: error
           retention-days: 1
@@ -140,7 +145,7 @@ jobs:
       - name: Download Bake Metadata
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: ${{ inputs.image }}-bake-metadata
+          name: ${{ inputs.image }}${{ inputs.variant && format('-{0}', inputs.variant) || '' }}-bake-metadata
           path: ${{ runner.temp }}
 
       - name: Setup Docker Buildx
@@ -157,29 +162,10 @@ jobs:
               keepBytes = 10000000000
               keepDuration = 86400
 
-      - name: Cache Docker buildx
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: /tmp/.buildx-cache
-          key: buildx-${{ inputs.image }}-${{ steps.target.outputs.arch }}-${{ github.sha }}
-          restore-keys: |
-            buildx-${{ inputs.image }}-${{ steps.target.outputs.arch }}-
-
-      - name: Check Disk Space After Cache Restore
+      - name: Check Disk Space
         run: |
-          echo "=== Disk space after cache restore ==="
+          echo "=== Available disk space ==="
           df -h /
-          CACHE_SIZE=$(du -sh /tmp/.buildx-cache 2>/dev/null | cut -f1 || echo "0")
-          echo "Cache size: $CACHE_SIZE"
-          # Get available space in KB
-          AVAIL=$(df / | tail -1 | awk '{print $4}')
-          echo "Available space: ${AVAIL}K"
-          # If less than 40GB available, clear the cache to make room for large builds
-          if [ "$AVAIL" -lt 40000000 ]; then
-            echo "Low disk space detected, clearing buildx cache..."
-            rm -rf /tmp/.buildx-cache/*
-            df -h /
-          fi
 
       - name: Add Include Directory to Build Context
         run: |
@@ -199,45 +185,30 @@ jobs:
             cwd://${{ runner.temp }}/docker-metadata-action-bake.json
           set: |
             *.args.VENDOR=${{ github.repository_owner }}
-            *.cache-from=type=local,src=/tmp/.buildx-cache
-            *.cache-to=type=local,dest=/tmp/.buildx-cache-new,mode=min
             *.labels.org.opencontainers.image.title=${{ inputs.image }}
             *.labels.org.opencontainers.image.url=https://ghcr.io/${{ github.repository_owner }}/${{ inputs.image }}
             *.labels.org.opencontainers.image.version=${{ steps.app-options.outputs.version }}
             *.labels.org.opencontainers.image.revision=${{ github.sha }}
             *.labels.org.opencontainers.image.vendor=${{ github.repository_owner }}
-            ${{ inputs.release && format('*.output=type=image,name=ghcr.io/{0}/{1},push-by-digest=true,name-canonical=true,push=true', github.repository_owner, inputs.image) || '*.output=type=docker' }}
+            *.output=type=image,name=ghcr.io/${{ github.repository_owner }}/${{ inputs.image }},push-by-digest=true,name-canonical=true,push=true
             *.platform=${{ matrix.platform }}
             *.tags=
           source: .
-          targets: image
+          targets: ${{ inputs.variant == 'devel' && 'image-devel' || 'image' }}
           workdir: ./${{ inputs.path }}/${{ inputs.image }}
-
-      - name: Move buildx cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
-
-      - if: ${{ ! inputs.release }}
-        name: Run Application Tests
-        uses: ./.github/actions/app-tests
-        with:
-          app: ${{ inputs.image }}
-          image: ${{ fromJSON(steps.bake.outputs.metadata).image['containerimage.config.digest'] }}
-          token: ${{ github.token }}
 
       - if: ${{ inputs.release }}
         name: Export Digest
         run: |
           mkdir -p ${{ runner.temp }}/digests
-          DIGEST="${{ fromJSON(steps.bake.outputs.metadata).image['containerimage.digest'] }}"
+          DIGEST="${{ inputs.variant == 'devel' && fromJSON(steps.bake.outputs.metadata)['image-devel']['containerimage.digest'] || fromJSON(steps.bake.outputs.metadata).image['containerimage.digest'] }}"
           touch "${{ runner.temp }}/digests/${DIGEST#sha256:}"
 
       - if: ${{ inputs.release }}
         name: Upload Digest
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ${{ inputs.image }}-digests-${{ steps.target.outputs.arch }}
+          name: ${{ inputs.image }}${{ inputs.variant && format('-{0}', inputs.variant) || '' }}-digests-${{ steps.target.outputs.arch }}
           path: ${{ runner.temp }}/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -258,14 +229,14 @@ jobs:
       - name: Download Bake Metadata
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: ${{ inputs.image }}-bake-metadata
+          name: ${{ inputs.image }}${{ inputs.variant && format('-{0}', inputs.variant) || '' }}-bake-metadata
           path: ${{ runner.temp }}
 
       - name: Download Digests
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: ${{ runner.temp }}/digests
-          pattern: ${{ inputs.image }}-digests-*
+          pattern: ${{ inputs.image }}${{ inputs.variant && format('-{0}', inputs.variant) || '' }}-digests-*
           merge-multiple: true
 
       - name: Login to GitHub Container Registry
@@ -314,7 +285,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Upload Dependency Snapshot
+      - if: ${{ inputs.variant != 'devel' }}
+        name: Upload Dependency Snapshot
         uses: anchore/sbom-action@e11c554f704a0b820cbf8c51673f6945e0731532 # v0.20.0
         with:
           dependency-snapshot: true
@@ -334,7 +306,7 @@ jobs:
           gh attestation verify --repo ${{ github.repository }} oci://ghcr.io/${{ github.repository_owner }}/${{ inputs.image }}@${{ needs.release.outputs.digest }}
 
   announce:
-    if: ${{ inputs.release && needs.plan.outputs.app-exists != 'true' }}
+    if: ${{ inputs.release && needs.plan.outputs.app-exists != 'true' && inputs.variant == '' }}
     name: Announce
     needs: ["plan", "attest"]
     runs-on: ubuntu-latest

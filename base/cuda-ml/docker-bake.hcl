@@ -14,13 +14,13 @@ variable "SOURCE" {
 }
 
 group "default" {
-  targets = ["image-local"]
+  targets = ["image-local", "image-devel-local"]
 }
 
+// Runtime target (default)
 target "image" {
   inherits = ["docker-metadata-action"]
-  // Build the runtime stage (final stage) by default
-  target = "runtime"
+  target   = "runtime"
   labels = {
     "org.opencontainers.image.source" = "${SOURCE}"
   }
@@ -28,12 +28,34 @@ target "image" {
 
 target "image-local" {
   inherits = ["image"]
-  output = ["type=docker"]
-  tags = ["${APP}:${VERSION}", "${APP}:latest"]
+  output   = ["type=docker"]
+  tags     = ["${APP}:${VERSION}", "${APP}:latest"]
 }
 
 target "image-all" {
   inherits = ["image"]
+  platforms = [
+    "linux/amd64"
+  ]
+}
+
+// Devel target (for building CUDA extensions)
+target "image-devel" {
+  inherits = ["docker-metadata-action"]
+  target   = "builder"
+  labels = {
+    "org.opencontainers.image.source" = "${SOURCE}"
+  }
+}
+
+target "image-devel-local" {
+  inherits = ["image-devel"]
+  output   = ["type=docker"]
+  tags     = ["${APP}:${VERSION}-devel", "${APP}:devel"]
+}
+
+target "image-devel-all" {
+  inherits = ["image-devel"]
   platforms = [
     "linux/amd64"
   ]

@@ -1,54 +1,16 @@
 ARG VERSION="v0.6.0"
-ARG CUDA_VERSION="12.8.0"
-ARG CUDA_DISTRO="ubuntu24.04"
-ARG TORCH_CUDA="cu128"
 ARG PYTHON_VERSION="3.12"
+ARG TORCH_CUDA="cu128"
 ARG BASE_IMAGE="ghcr.io/arsac/cuda-ml"
-ARG BASE_VERSION="rolling"
 
 # =============================================================================
-# Builder stage - CUDA devel for compiling extensions
-# Uses base image for Python packages, adds app-specific CUDA builds
+# Builder stage - uses devel base image with CUDA compiler and build tools
 # =============================================================================
-FROM ${BASE_IMAGE}:${BASE_VERSION} AS base
-
-FROM nvidia/cuda:${CUDA_VERSION}-devel-${CUDA_DISTRO} AS builder
+FROM ${BASE_IMAGE}:devel AS builder
 
 ARG VERSION
 ARG TORCH_CUDA
 ARG PYTHON_VERSION
-
-ENV DEBIAN_FRONTEND=noninteractive \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    CUDA_HOME=/usr/local/cuda \
-    PATH=/usr/local/cuda/bin:${PATH} \
-    CPLUS_INCLUDE_PATH=/usr/local/cuda/include \
-    TORCH_CUDA_ARCH_LIST="12.0" \
-    UV_SYSTEM_PYTHON=1 \
-    UV_BREAK_SYSTEM_PACKAGES=1 \
-    UV_LINK_MODE=copy \
-    UV_HTTP_TIMEOUT=300 \
-    UV_EXTRA_INDEX_URL="https://download.pytorch.org/whl/${TORCH_CUDA}"
-
-# Install Python and build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python${PYTHON_VERSION} python${PYTHON_VERSION}-dev python${PYTHON_VERSION}-venv \
-    build-essential ninja-build git curl ca-certificates && \
-    ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python && \
-    ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python3 && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
-
-# Copy Python packages from base image (PyTorch, xformers, sageattention, etc.)
-COPY --from=base /usr/local/lib/python${PYTHON_VERSION} /usr/local/lib/python${PYTHON_VERSION}
-COPY --from=base /usr/lib/python3/dist-packages /usr/lib/python3/dist-packages
-COPY --from=base /constraints.txt /constraints.txt
-
-ENV UV_CONSTRAINT=/constraints.txt \
-    PIP_CONSTRAINT=/constraints.txt
 
 # Clone ComfyUI and install requirements
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -103,11 +65,10 @@ RUN find /usr/local/lib/python${PYTHON_VERSION} -type d -name '__pycache__' -exe
     rm -rf /tmp/* /var/tmp/*
 
 # =============================================================================
-# Runtime stage - use base image with app-specific additions
+# Runtime stage - use runtime base image with app-specific additions
 # =============================================================================
-FROM ${BASE_IMAGE}:${BASE_VERSION}
+FROM ${BASE_IMAGE}:runtime
 
-ARG TORCH_CUDA
 ARG PYTHON_VERSION
 
 ENV UV_CONSTRAINT=/app/constraints.txt \
