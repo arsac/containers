@@ -54,7 +54,7 @@ RUN uv pip install \
     sageattention==${SAGEATTENTION_VERSION} \
     pygltflib trimesh opencv-contrib-python-headless \
     soundfile librosa pymeshlab && \
-    rm -rf /root/.cache/uv
+    rm -rf /root/.cache/uv /root/.cache/pip /tmp/*
 
 # Clone ComfyUI and install requirements
 RUN git clone --depth 1 --branch ${VERSION} --quiet \
@@ -96,10 +96,14 @@ RUN uv pip freeze | grep -E \
     > /app/constraints.txt && \
     echo "Generated constraints:" && cat /app/constraints.txt
 
-# Clean up to reduce image size
+# Aggressive cleanup to reduce image size
 RUN find /usr/local/lib/python${PYTHON_VERSION} -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && \
+    find /usr/local/lib/python${PYTHON_VERSION} -type d -name 'tests' -exec rm -rf {} + 2>/dev/null || true && \
+    find /usr/local/lib/python${PYTHON_VERSION} -type d -name 'test' -exec rm -rf {} + 2>/dev/null || true && \
+    find /usr/local/lib/python${PYTHON_VERSION} -type d -name 'docs' -exec rm -rf {} + 2>/dev/null || true && \
     find /usr/local/lib/python${PYTHON_VERSION} -name '*.pyc' -delete 2>/dev/null || true && \
-    find /usr/local/lib/python${PYTHON_VERSION} -name '*.so' -exec strip --strip-unneeded {} \; 2>/dev/null || true
+    find /usr/local/lib/python${PYTHON_VERSION} -name '*.so' -exec strip --strip-unneeded {} \; 2>/dev/null || true && \
+    rm -rf /root/.cache /root/.triton /tmp/* /var/tmp/*
 
 # =============================================================================
 # Runtime stage - minimal CUDA runtime
