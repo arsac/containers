@@ -14,6 +14,10 @@ on:
         description: Release
         required: true
 
+concurrency:
+  group: build-${{ inputs.app }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   plan:
     name: Plan
@@ -72,6 +76,7 @@ jobs:
   build:
     name: Build (${{ matrix.platform }})
     needs: ["plan"]
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -79,7 +84,7 @@ jobs:
     runs-on: ${{ startsWith(matrix.platform, 'linux/arm') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     steps:
       - name: Free Disk Space
-        uses: jlumbroso/free-disk-space@main
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
         with:
           tool-cache: true
           large-packages: true
@@ -92,8 +97,12 @@ jobs:
       - name: Additional Cleanup
         run: |
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/share/powershell
+          sudo rm -rf /usr/local/share/chromium /usr/local/share/edge_driver /usr/local/share/gecko_driver
+          sudo rm -rf /usr/share/miniconda /usr/share/swift /usr/local/julia* /opt/hostedtoolcache
+          sudo rm -rf /imagegeneration
           sudo apt-get autoremove -y && sudo apt-get clean
           docker system prune -af --volumes
+          echo "=== Final disk space ==="
           df -h
 
       - name: Checkout
@@ -133,12 +142,28 @@ jobs:
           driver-opts: image=moby/buildkit:latest
 
       - name: Cache Docker buildx
-        uses: actions/cache@v4
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: /tmp/.buildx-cache
           key: buildx-${{ inputs.app }}-${{ steps.target.outputs.arch }}-${{ github.sha }}
           restore-keys: |
             buildx-${{ inputs.app }}-${{ steps.target.outputs.arch }}-
+
+      - name: Check Disk Space After Cache Restore
+        run: |
+          echo "=== Disk space after cache restore ==="
+          df -h /
+          CACHE_SIZE=$(du -sh /tmp/.buildx-cache 2>/dev/null | cut -f1 || echo "0")
+          echo "Cache size: $CACHE_SIZE"
+          # Get available space in KB
+          AVAIL=$(df / | tail -1 | awk '{print $4}')
+          echo "Available space: ${AVAIL}K"
+          # If less than 20GB available, clear the cache to make room
+          if [ "$AVAIL" -lt 20000000 ]; then
+            echo "Low disk space detected, clearing buildx cache..."
+            rm -rf /tmp/.buildx-cache/*
+            df -h /
+          fi
 
       - name: Add Include Directory to Build Context
         run: |
@@ -154,7 +179,7 @@ jobs:
           set: |
             *.args.VENDOR=${{ github.repository_owner }}
             *.cache-from=type=local,src=/tmp/.buildx-cache
-            *.cache-to=type=local,dest=/tmp/.buildx-cache-new,mode=max
+            *.cache-to=type=local,dest=/tmp/.buildx-cache-new,mode=min
             *.labels.org.opencontainers.image.title=${{ inputs.app }}
             *.labels.org.opencontainers.image.url=https://ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}
             *.labels.org.opencontainers.image.version=${{ steps.app-options.outputs.version }}
@@ -254,7 +279,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Free Disk Space
-        uses: jlumbroso/free-disk-space@main
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
         with:
           tool-cache: true
           large-packages: true

@@ -18,6 +18,10 @@ on:
         required: false
         default: false
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   prepare:
     name: Prepare
