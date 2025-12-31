@@ -22,9 +22,9 @@ on:
         required: true
       release:
         type: boolean
-        description: Release
+        description: Release (uncheck only for testing builds without pushing tags)
         required: false
-        default: false
+        default: true
 
 concurrency:
   group: release-${{ github.ref }}

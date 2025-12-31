@@ -41,10 +41,11 @@ ENV DEBIAN_FRONTEND=noninteractive \
     UV_HTTP_TIMEOUT=300 \
     UV_EXTRA_INDEX_URL="https://download.pytorch.org/whl/${TORCH_CUDA}"
 
-# Install Python and build dependencies
+# Install Python, build dependencies, and runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python${PYTHON_VERSION} python${PYTHON_VERSION}-dev python${PYTHON_VERSION}-venv \
-    build-essential ninja-build git curl ca-certificates && \
+    build-essential ninja-build git curl ca-certificates \
+    ffmpeg fonts-dejavu-core libgl1 libopengl0 libglib2.0-0 libsndfile1 tini && \
     ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python && \
     ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python3 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -61,10 +62,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --index-url https://download.pytorch.org/whl/${TORCH_CUDA} && \
     uv pip install \
     accelerate flatbuffers numpy onnxruntime-gpu \
-    packaging protobuf nvidia-ml-py sympy pybind11 \
+    packaging protobuf nvidia-ml-py sympy pybind11 ninja psutil wheel \
     sageattention==${SAGEATTENTION_VERSION} \
     pygltflib trimesh opencv-contrib-python-headless \
     soundfile librosa pymeshlab insightface && \
+    uv pip install flash-attn --no-build-isolation && \
     echo "Installed torch version:" && \
     python -c "import torch; print(torch.__version__)"
 

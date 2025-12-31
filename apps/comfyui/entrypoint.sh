@@ -35,6 +35,13 @@ fi
 uv venv --system-site-packages --link-mode=copy --allow-existing "$VIRTUAL_ENV"
 source "$VIRTUAL_ENV/bin/activate"
 
+# Override base image settings to install into venv, not system
+# - Unset UV_SYSTEM_PYTHON: install into venv, fixes permission denied errors for /usr/bin/hf, f2py
+# - UV_NO_BUILD_ISOLATION: allow build-time access to torch for packages like ComfyUI-3D-Pack deps
+unset UV_SYSTEM_PYTHON
+unset UV_BREAK_SYSTEM_PACKAGES
+export UV_NO_BUILD_ISOLATION=1
+
 # Install uv into venv so ComfyUI-Manager can use it
 VENV_SITE=$(python -c "import sysconfig; print(sysconfig.get_path('purelib'))")
 uv pip install --quiet --no-index --find-links="$VENV_SITE" uv 2>/dev/null || true
