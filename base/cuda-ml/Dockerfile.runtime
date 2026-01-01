@@ -1,0 +1,61 @@
+# CUDA ML Runtime Image
+# Minimal CUDA runtime with Python packages copied from devel image
+#
+# Build locally (requires devel image to exist):
+#   docker buildx bake image-local
+#
+# Tags: cuda-ml:runtime, cuda-ml:latest
+
+ARG CUDA_VERSION="12.8.0"
+ARG CUDA_DISTRO="ubuntu24.04"
+ARG TORCH_CUDA="cu128"
+ARG PYTHON_VERSION="3.12"
+ARG VENDOR="arsac"
+
+# Pull packages from published devel image (not built locally)
+ARG DEVEL_IMAGE="ghcr.io/${VENDOR}/cuda-ml:devel"
+
+FROM ${DEVEL_IMAGE} AS devel
+
+FROM nvidia/cuda:${CUDA_VERSION}-runtime-${CUDA_DISTRO}
+
+ARG TORCH_CUDA
+ARG PYTHON_VERSION
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    LD_LIBRARY_PATH=/usr/local/lib/python${PYTHON_VERSION}/dist-packages/torch/lib \
+    UV_EXTRA_INDEX_URL="https://download.pytorch.org/whl/${TORCH_CUDA}" \
+    UV_LINK_MODE=copy \
+    UV_CONSTRAINT=/constraints.txt \
+    PIP_CONSTRAINT=/constraints.txt \
+    PYTORCH_ALLOC_CONF=expandable_segments:True
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python${PYTHON_VERSION} python${PYTHON_VERSION}-venv \
+    ffmpeg fonts-dejavu-core git libgl1 libopengl0 libglib2.0-0 libsndfile1 curl ca-certificates tini \
+    gcc && \
+    ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python && \
+    ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python3 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Copy Python packages from devel image (pulled from registry, not built locally)
+COPY --from=devel /usr/local/lib/python${PYTHON_VERSION} /usr/local/lib/python${PYTHON_VERSION}
+COPY --from=devel /usr/lib/python3/dist-packages /usr/lib/python3/dist-packages
+COPY --from=devel /constraints.txt /constraints.txt
+
+# Cleanup to reduce image size
+RUN find /usr/local/lib/python${PYTHON_VERSION} -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && \
+    find /usr/local/lib/python${PYTHON_VERSION} -type d -name 'tests' -exec rm -rf {} + 2>/dev/null || true && \
+    find /usr/local/lib/python${PYTHON_VERSION} -type d -name 'test' -exec rm -rf {} + 2>/dev/null || true && \
+    find /usr/local/lib/python${PYTHON_VERSION} -type d -name 'docs' -exec rm -rf {} + 2>/dev/null || true && \
+    find /usr/local/lib/python${PYTHON_VERSION} -name '*.pyc' -delete 2>/dev/null || true && \
+    rm -rf /tmp/* /var/tmp/*
+
+# Verify installation
+RUN python -c "import torch; print(f'PyTorch {torch.__version__} with CUDA {torch.version.cuda}')"

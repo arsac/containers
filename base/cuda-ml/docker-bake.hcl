@@ -13,36 +13,19 @@ variable "SOURCE" {
   default = "https://github.com/arsac/containers"
 }
 
+variable "VENDOR" {
+  default = "arsac"
+}
+
 group "default" {
-  targets = ["image-local", "image-devel-local"]
+  targets = ["image-devel-local", "image-local"]
 }
 
-// Runtime target (default)
-target "image" {
-  inherits = ["docker-metadata-action"]
-  target   = "runtime"
-  labels = {
-    "org.opencontainers.image.source" = "${SOURCE}"
-  }
-}
-
-target "image-local" {
-  inherits = ["image"]
-  output   = ["type=docker"]
-  tags     = ["${APP}:${VERSION}", "${APP}:latest"]
-}
-
-target "image-all" {
-  inherits = ["image"]
-  platforms = [
-    "linux/amd64"
-  ]
-}
-
-// Devel target (for building CUDA extensions)
+// Devel target - CUDA devel + PyTorch (for compiling CUDA extensions)
+// Must be built and pushed BEFORE runtime
 target "image-devel" {
-  inherits = ["docker-metadata-action"]
-  target   = "builder"
+  inherits   = ["docker-metadata-action"]
+  dockerfile = "Dockerfile"
   labels = {
     "org.opencontainers.image.source" = "${SOURCE}"
   }
@@ -56,6 +39,36 @@ target "image-devel-local" {
 
 target "image-devel-all" {
   inherits = ["image-devel"]
+  platforms = [
+    "linux/amd64"
+  ]
+}
+
+// Runtime target - minimal CUDA runtime with Python packages
+// Pulls from published devel image (not built locally)
+target "image" {
+  inherits   = ["docker-metadata-action"]
+  dockerfile = "Dockerfile.runtime"
+  args = {
+    VENDOR = "${VENDOR}"
+  }
+  labels = {
+    "org.opencontainers.image.source" = "${SOURCE}"
+  }
+}
+
+target "image-local" {
+  inherits = ["image"]
+  output   = ["type=docker"]
+  tags     = ["${APP}:${VERSION}", "${APP}:runtime", "${APP}:latest"]
+  // For local builds, use local devel image
+  args = {
+    DEVEL_IMAGE = "${APP}:devel"
+  }
+}
+
+target "image-all" {
+  inherits = ["image"]
   platforms = [
     "linux/amd64"
   ]

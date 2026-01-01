@@ -54,12 +54,12 @@ jobs:
           include_only_directories: true
           max_depth: 1
 
-  # Build base images first (other images may depend on them)
-  # Runtime variant
+  # Build base images: devel first, then runtime (runtime pulls from published devel)
+  # Runtime variant - depends on devel being published first
   build-bases:
-    if: ${{ needs.prepare.outputs.changed-bases != '[]' || (github.event_name == 'workflow_dispatch' && inputs.type == 'base') }}
+    if: ${{ always() && !failure() && !cancelled() && (needs.prepare.outputs.changed-bases != '[]' || (github.event_name == 'workflow_dispatch' && inputs.type == 'base')) }}
     name: Build Base ${{ matrix.base }}
-    needs: ["prepare"]
+    needs: ["prepare", "build-bases-devel"]
     uses: ./.github/workflows/image-builder.yaml
     permissions:
       attestations: write
@@ -77,7 +77,7 @@ jobs:
       path: base
       release: ${{ github.event_name == 'workflow_dispatch' && inputs.release || github.event_name == 'push' }}
 
-  # Devel variant (for base images only)
+  # Devel variant - built first (runtime depends on published devel)
   build-bases-devel:
     if: ${{ needs.prepare.outputs.changed-bases != '[]' || (github.event_name == 'workflow_dispatch' && inputs.type == 'base') }}
     name: Build Base ${{ matrix.base }} (devel)

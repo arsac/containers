@@ -267,6 +267,20 @@ jobs:
           large-packages: true
           docker-images: true
           swap-storage: true
+          android: true
+          dotnet: true
+          haskell: true
+
+      - name: Additional Cleanup
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/share/powershell
+          sudo rm -rf /usr/local/share/chromium /usr/local/share/edge_driver /usr/local/share/gecko_driver
+          sudo rm -rf /usr/share/miniconda /usr/share/swift /usr/local/julia* /opt/hostedtoolcache
+          sudo rm -rf /imagegeneration
+          sudo apt-get autoremove -y && sudo apt-get clean
+          docker system prune -af --volumes
+          echo "=== Final disk space ==="
+          df -h
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
@@ -278,6 +292,7 @@ jobs:
       - if: ${{ inputs.variant != 'devel' }}
         name: Upload Dependency Snapshot
         uses: anchore/sbom-action@e11c554f704a0b820cbf8c51673f6945e0731532 # v0.20.0
+        continue-on-error: true  # SBOM may fail for large images due to disk space
         with:
           dependency-snapshot: true
           image: ghcr.io/${{ github.repository_owner }}/${{ inputs.image }}@${{ needs.release.outputs.digest }}
