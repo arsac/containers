@@ -103,6 +103,14 @@ RUN uv pip freeze | grep -E \
     > /constraints.txt && \
     echo "Generated constraints:" && cat /constraints.txt
 
+# Cleanup builder stage to reduce devel image size
+ARG PYTHON_VERSION
+RUN rm -rf /usr/local/lib/python${PYTHON_VERSION}/dist-packages/torch/test && \
+    rm -rf /usr/local/lib/python${PYTHON_VERSION}/dist-packages/torch/benchmarks && \
+    find /usr/local/lib/python${PYTHON_VERSION} -name "*.so" -exec strip --strip-unneeded {} + 2>/dev/null || true && \
+    find /usr/local/lib/python${PYTHON_VERSION} -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && \
+    rm -rf /tmp/* /var/tmp/*
+
 # =============================================================================
 # Runtime stage - minimal CUDA runtime with Python packages
 # =============================================================================
@@ -144,6 +152,11 @@ RUN find /usr/local/lib/python${PYTHON_VERSION} -type d -name '__pycache__' -exe
     find /usr/local/lib/python${PYTHON_VERSION} -type d -name 'test' -exec rm -rf {} + 2>/dev/null || true && \
     find /usr/local/lib/python${PYTHON_VERSION} -type d -name 'docs' -exec rm -rf {} + 2>/dev/null || true && \
     find /usr/local/lib/python${PYTHON_VERSION} -name '*.pyc' -delete 2>/dev/null || true && \
+    # Remove PyTorch test/benchmark data (~300MB)
+    rm -rf /usr/local/lib/python${PYTHON_VERSION}/dist-packages/torch/test && \
+    rm -rf /usr/local/lib/python${PYTHON_VERSION}/dist-packages/torch/benchmarks && \
+    # Strip debug symbols from shared libraries (~500MB-1GB)
+    find /usr/local/lib/python${PYTHON_VERSION} -name "*.so" -exec strip --strip-unneeded {} + 2>/dev/null || true && \
     rm -rf /tmp/* /var/tmp/*
 
 # Verify installation
