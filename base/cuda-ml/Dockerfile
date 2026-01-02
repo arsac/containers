@@ -61,6 +61,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     pygltflib trimesh opencv-contrib-python-headless \
     soundfile librosa pymeshlab insightface && \
     uv pip install flash-attn --no-build-isolation && \
+    uv pip install git+https://github.com/NVlabs/nvdiffrast.git --no-build-isolation && \
     echo "Installed torch version:" && \
     python -c "import torch; print(torch.__version__)"
 
