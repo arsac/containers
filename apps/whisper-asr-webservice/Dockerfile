@@ -1,54 +1,30 @@
-
-ARG VERSION="v1.8.2"
-
-FROM onerahmet/ffmpeg:n7.1 AS ffmpeg
+ARG VERSION="v1.9.1"
+ARG VENDOR="arsac"
 
 FROM swaggerapi/swagger-ui:v5.9.1 AS swagger-ui
 
-FROM nvidia/cuda:12.8.0-base-ubuntu22.04
+FROM ghcr.io/${VENDOR}/cuda-ml:runtime
+
 ARG VERSION
 
-
-ENV PYTHON_VERSION=3.10
-
-ENV POETRY_VENV=/app/.venv
-
-RUN export DEBIAN_FRONTEND=noninteractive \
-    && apt-get -qq update \
-    && apt-get -qq install --no-install-recommends \
-    python${PYTHON_VERSION} \
-    python${PYTHON_VERSION}-venv \
-    python3-pip \
-    libcudnn8 \
-    python3-pip \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN ln -s -f /usr/bin/python${PYTHON_VERSION} /usr/bin/python3 && \
-    ln -s -f /usr/bin/python${PYTHON_VERSION} /usr/bin/python && \
-    ln -s -f /usr/bin/pip3 /usr/bin/pip
-
-RUN git clone --depth 1 --branch ${VERSION} --quiet https://github.com/ahmetoner/whisper-asr-webservice.git /app
-
-RUN python3 -m venv $POETRY_VENV \
-    && $POETRY_VENV/bin/pip install -U pip setuptools \
-    && $POETRY_VENV/bin/pip install poetry==2.1.1
-
-ENV PATH="${PATH}:${POETRY_VENV}/bin"
+# Install build dependencies for PyAV compilation
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-dev pkg-config \
+    libavformat-dev libavcodec-dev libavdevice-dev \
+    libavutil-dev libswscale-dev libswresample-dev libavfilter-dev && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-RUN poetry config virtualenvs.in-project true
-RUN poetry install --no-root
+RUN git clone --depth 1 --branch ${VERSION} --quiet https://github.com/ahmetoner/whisper-asr-webservice.git .
 
+# Install dependencies with uv (torch already in base, use PyPI only)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    UV_EXTRA_INDEX_URL= uv pip install --system --break-system-packages .
 
-COPY --from=ffmpeg /usr/local/bin/ffmpeg /usr/local/bin/ffmpeg
 COPY --from=swagger-ui /usr/share/nginx/html/swagger-ui.css swagger-ui-assets/swagger-ui.css
 COPY --from=swagger-ui /usr/share/nginx/html/swagger-ui-bundle.js swagger-ui-assets/swagger-ui-bundle.js
 
-RUN poetry install
-RUN $POETRY_VENV/bin/pip install torch==2.7.1+cu128 torchaudio==2.7.1+cu128 --index-url https://download.pytorch.org/whl/cu128
-
 EXPOSE 9000
 
-CMD ["whisper-asr-webservice"]
+ENTRYPOINT ["whisper-asr-webservice"]
