@@ -122,7 +122,7 @@
         { "name": "IMAGE", "type": "IMAGE", "links": [12], "slot_index": 0 }
       ],
       "properties": { "Node name for S&R": "ImageCompositeMasked" },
-      "widgets_values": [0, 0, false],
+      "widgets_values": [0, 0, true],
       "title": "Replace Background with Gray"
     },
     {
