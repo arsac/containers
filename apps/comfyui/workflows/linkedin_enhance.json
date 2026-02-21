@@ -1,6 +1,6 @@
 {
-  "last_node_id": 17,
-  "last_link_id": 22,
+  "last_node_id": 20,
+  "last_link_id": 26,
   "nodes": [
     {
       "id": 1,
@@ -45,7 +45,7 @@
       ],
       "outputs": [
         {"name": "IMAGE", "type": "IMAGE", "links": null},
-        {"name": "MASK", "type": "MASK", "links": [4, 13], "slot_index": 1}
+        {"name": "MASK", "type": "MASK", "links": [4, 23, 24], "slot_index": 1}
       ],
       "properties": {"Node name for S&R": "BRIA_RMBG_Zho"}
     },
@@ -283,6 +283,61 @@
       ],
       "properties": {"Node name for S&R": "SaveImage"},
       "widgets_values": ["linkedin_enhanced"]
+    },
+    {
+      "id": 18,
+      "type": "GrowMask",
+      "pos": [800, 550],
+      "size": [315, 82],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {"name": "mask", "type": "MASK", "link": 23}
+      ],
+      "outputs": [
+        {"name": "MASK", "type": "MASK", "links": [25], "slot_index": 0}
+      ],
+      "properties": {"Node name for S&R": "GrowMask"},
+      "widgets_values": [12, true],
+      "title": "Grow Mask (Outer Edge)"
+    },
+    {
+      "id": 19,
+      "type": "GrowMask",
+      "pos": [800, 700],
+      "size": [315, 82],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {"name": "mask", "type": "MASK", "link": 24}
+      ],
+      "outputs": [
+        {"name": "MASK", "type": "MASK", "links": [26], "slot_index": 0}
+      ],
+      "properties": {"Node name for S&R": "GrowMask"},
+      "widgets_values": [-12, true],
+      "title": "Shrink Mask (Inner Edge)"
+    },
+    {
+      "id": 20,
+      "type": "MaskComposite",
+      "pos": [1150, 950],
+      "size": [315, 130],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {"name": "destination", "type": "MASK", "link": 25},
+        {"name": "source", "type": "MASK", "link": 26}
+      ],
+      "outputs": [
+        {"name": "MASK", "type": "MASK", "links": [13], "slot_index": 0}
+      ],
+      "properties": {"Node name for S&R": "MaskComposite"},
+      "widgets_values": [0, 0, "subtract"],
+      "title": "Edge Band Mask"
     }
   ],
   "links": [
@@ -298,7 +353,7 @@
     [10, 11, 0, 12, 1, "CONDITIONING"],
     [11, 9, 0, 12, 2, "VAE"],
     [12, 6, 0, 12, 3, "IMAGE"],
-    [13, 3, 1, 12, 4, "MASK"],
+    [13, 20, 0, 12, 4, "MASK"],
     [14, 7, 0, 13, 0, "MODEL"],
     [15, 12, 0, 13, 1, "CONDITIONING"],
     [16, 12, 1, 13, 2, "CONDITIONING"],
@@ -307,7 +362,11 @@
     [19, 9, 0, 14, 1, "VAE"],
     [20, 14, 0, 15, 0, "IMAGE"],
     [21, 15, 0, 16, 0, "IMAGE"],
-    [22, 15, 0, 17, 0, "IMAGE"]
+    [22, 15, 0, 17, 0, "IMAGE"],
+    [23, 3, 1, 18, 0, "MASK"],
+    [24, 3, 1, 19, 0, "MASK"],
+    [25, 18, 0, 20, 0, "MASK"],
+    [26, 19, 0, 20, 1, "MASK"]
   ],
   "groups": [
     {
@@ -321,8 +380,13 @@
       "color": "#8A8"
     },
     {
-      "title": "3. Edge Refinement (Flux Fill)",
-      "bounding": [1130, 150, 1150, 780],
+      "title": "3a. Edge Band Mask",
+      "bounding": [780, 500, 700, 650],
+      "color": "#a66"
+    },
+    {
+      "title": "3b. Edge Refinement (Flux Fill)",
+      "bounding": [1130, 150, 1150, 900],
       "color": "#a86"
     },
     {
