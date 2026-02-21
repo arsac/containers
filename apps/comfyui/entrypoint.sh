@@ -92,6 +92,7 @@ MODEL_DIRECTORIES=(
     "hypernetworks"
     "loras"
     "photomaker"
+    "pulid"
     "style_models"
     "text_encoders"
     "upscale_models"

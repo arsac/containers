@@ -32,6 +32,7 @@ comfyui:
   gligen: models/gligen/
   hypernetworks: models/hypernetworks/
   photomaker: models/photomaker/
+  pulid: models/pulid/
   classifiers: models/classifiers/
 
   # New in recent versions
