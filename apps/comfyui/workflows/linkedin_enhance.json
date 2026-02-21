@@ -1,6 +1,6 @@
 {
   "last_node_id": 23,
-  "last_link_id": 22,
+  "last_link_id": 101,
   "nodes": [
     {
       "id": 1,
@@ -250,7 +250,7 @@
       "order": 12,
       "mode": 0,
       "inputs": [
-        { "name": "samples", "type": "LATENT", "link": [98] },
+        { "name": "samples", "type": "LATENT", "link": 98 },
         { "name": "vae", "type": "VAE", "link": 15 }
       ],
       "outputs": [
