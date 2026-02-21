@@ -11,10 +11,10 @@
       "order": 0,
       "mode": 0,
       "outputs": [
-        {"name": "IMAGE", "type": "IMAGE", "links": [1], "slot_index": 0},
-        {"name": "MASK", "type": "MASK", "links": null}
+        { "name": "IMAGE", "type": "IMAGE", "links": [1], "slot_index": 0 },
+        { "name": "MASK", "type": "MASK", "links": null }
       ],
-      "properties": {"Node name for S&R": "LoadImage"},
+      "properties": { "Node name for S&R": "LoadImage" },
       "widgets_values": ["photo.png", "image"]
     },
     {
@@ -25,13 +25,11 @@
       "flags": {},
       "order": 1,
       "mode": 0,
-      "inputs": [
-        {"name": "image", "type": "IMAGE", "link": 1}
-      ],
+      "inputs": [{ "name": "image", "type": "IMAGE", "link": 1 }],
       "outputs": [
-        {"name": "IMAGE", "type": "IMAGE", "links": [2, 5], "slot_index": 0}
+        { "name": "IMAGE", "type": "IMAGE", "links": [2, 5], "slot_index": 0 }
       ],
-      "properties": {"Node name for S&R": "ImageScaleToTotalPixels"},
+      "properties": { "Node name for S&R": "ImageScaleToTotalPixels" },
       "widgets_values": ["lanczos", 1.0],
       "title": "Scale ~1MP (keep aspect ratio)"
     },
@@ -44,9 +42,14 @@
       "order": 2,
       "mode": 0,
       "outputs": [
-        {"name": "rmbgmodel", "type": "RMBG_MODEL", "links": [3], "slot_index": 0}
+        {
+          "name": "rmbgmodel",
+          "type": "RMBG_MODEL",
+          "links": [3],
+          "slot_index": 0
+        }
       ],
-      "properties": {"Node name for S&R": "BRIA_RMBG_ModelLoader_Zho"},
+      "properties": { "Node name for S&R": "BRIA_RMBG_ModelLoader_Zho" },
       "widgets_values": []
     },
     {
@@ -58,14 +61,19 @@
       "order": 3,
       "mode": 0,
       "inputs": [
-        {"name": "rmbgmodel", "type": "RMBG_MODEL", "link": 3},
-        {"name": "image", "type": "IMAGE", "link": 2}
+        { "name": "rmbgmodel", "type": "RMBG_MODEL", "link": 3 },
+        { "name": "image", "type": "IMAGE", "link": 2 }
       ],
       "outputs": [
-        {"name": "IMAGE", "type": "IMAGE", "links": null},
-        {"name": "MASK", "type": "MASK", "links": [4, 23, 24], "slot_index": 1}
+        { "name": "IMAGE", "type": "IMAGE", "links": null },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [4, 23, 24],
+          "slot_index": 1
+        }
       ],
-      "properties": {"Node name for S&R": "BRIA_RMBG_Zho"}
+      "properties": { "Node name for S&R": "BRIA_RMBG_Zho" }
     },
     {
       "id": 21,
@@ -75,13 +83,11 @@
       "flags": {},
       "order": 4,
       "mode": 0,
-      "inputs": [
-        {"name": "mask", "type": "MASK", "link": 4}
-      ],
+      "inputs": [{ "name": "mask", "type": "MASK", "link": 4 }],
       "outputs": [
-        {"name": "MASK", "type": "MASK", "links": [7], "slot_index": 0}
+        { "name": "MASK", "type": "MASK", "links": [7], "slot_index": 0 }
       ],
-      "properties": {"Node name for S&R": "InvertMask"},
+      "properties": { "Node name for S&R": "InvertMask" },
       "title": "Invert (background = white)"
     },
     {
@@ -93,9 +99,9 @@
       "order": 5,
       "mode": 0,
       "outputs": [
-        {"name": "IMAGE", "type": "IMAGE", "links": [6], "slot_index": 0}
+        { "name": "IMAGE", "type": "IMAGE", "links": [6], "slot_index": 0 }
       ],
-      "properties": {"Node name for S&R": "EmptyImage"},
+      "properties": { "Node name for S&R": "EmptyImage" },
       "widgets_values": [4096, 4096, 1, 14277081],
       "title": "Gray Background (oversized)"
     },
@@ -108,14 +114,14 @@
       "order": 6,
       "mode": 0,
       "inputs": [
-        {"name": "destination", "type": "IMAGE", "link": 5},
-        {"name": "source", "type": "IMAGE", "link": 6},
-        {"name": "mask", "type": "MASK", "link": 7}
+        { "name": "destination", "type": "IMAGE", "link": 5 },
+        { "name": "source", "type": "IMAGE", "link": 6 },
+        { "name": "mask", "type": "MASK", "link": 7 }
       ],
       "outputs": [
-        {"name": "IMAGE", "type": "IMAGE", "links": [12], "slot_index": 0}
+        { "name": "IMAGE", "type": "IMAGE", "links": [12], "slot_index": 0 }
       ],
-      "properties": {"Node name for S&R": "ImageCompositeMasked"},
+      "properties": { "Node name for S&R": "ImageCompositeMasked" },
       "widgets_values": [0, 0, false],
       "title": "Replace Background with Gray"
     },
@@ -127,13 +133,11 @@
       "flags": {},
       "order": 7,
       "mode": 0,
-      "inputs": [
-        {"name": "mask", "type": "MASK", "link": 23}
-      ],
+      "inputs": [{ "name": "mask", "type": "MASK", "link": 23 }],
       "outputs": [
-        {"name": "MASK", "type": "MASK", "links": [25], "slot_index": 0}
+        { "name": "MASK", "type": "MASK", "links": [25], "slot_index": 0 }
       ],
-      "properties": {"Node name for S&R": "GrowMask"},
+      "properties": { "Node name for S&R": "GrowMask" },
       "widgets_values": [12, true],
       "title": "Grow Mask (Outer Edge)"
     },
@@ -145,13 +149,11 @@
       "flags": {},
       "order": 8,
       "mode": 0,
-      "inputs": [
-        {"name": "mask", "type": "MASK", "link": 24}
-      ],
+      "inputs": [{ "name": "mask", "type": "MASK", "link": 24 }],
       "outputs": [
-        {"name": "MASK", "type": "MASK", "links": [26], "slot_index": 0}
+        { "name": "MASK", "type": "MASK", "links": [26], "slot_index": 0 }
       ],
-      "properties": {"Node name for S&R": "GrowMask"},
+      "properties": { "Node name for S&R": "GrowMask" },
       "widgets_values": [-12, true],
       "title": "Shrink Mask (Inner Edge)"
     },
@@ -164,13 +166,13 @@
       "order": 9,
       "mode": 0,
       "inputs": [
-        {"name": "destination", "type": "MASK", "link": 25},
-        {"name": "source", "type": "MASK", "link": 26}
+        { "name": "destination", "type": "MASK", "link": 25 },
+        { "name": "source", "type": "MASK", "link": 26 }
       ],
       "outputs": [
-        {"name": "MASK", "type": "MASK", "links": [13], "slot_index": 0}
+        { "name": "MASK", "type": "MASK", "links": [13], "slot_index": 0 }
       ],
-      "properties": {"Node name for S&R": "MaskComposite"},
+      "properties": { "Node name for S&R": "MaskComposite" },
       "widgets_values": [0, 0, "subtract"],
       "title": "Edge Band Mask"
     },
@@ -183,9 +185,9 @@
       "order": 10,
       "mode": 0,
       "outputs": [
-        {"name": "MODEL", "type": "MODEL", "links": [14, 28], "slot_index": 0}
+        { "name": "MODEL", "type": "MODEL", "links": [14, 28], "slot_index": 0 }
       ],
-      "properties": {"Node name for S&R": "UNETLoader"},
+      "properties": { "Node name for S&R": "UNETLoader" },
       "widgets_values": ["flux1-fill-dev.safetensors", "fp8_e4m3fn"]
     },
     {
@@ -197,10 +199,14 @@
       "order": 11,
       "mode": 0,
       "outputs": [
-        {"name": "CLIP", "type": "CLIP", "links": [8, 9, 29], "slot_index": 0}
+        { "name": "CLIP", "type": "CLIP", "links": [8, 9, 29], "slot_index": 0 }
       ],
-      "properties": {"Node name for S&R": "DualCLIPLoader"},
-      "widgets_values": ["clip_l.safetensors", "t5xxl_fp8_e4m3fn.safetensors", "flux"]
+      "properties": { "Node name for S&R": "DualCLIPLoader" },
+      "widgets_values": [
+        "clip_l.safetensors",
+        "t5xxl_fp8_e4m3fn.safetensors",
+        "flux"
+      ]
     },
     {
       "id": 9,
@@ -211,9 +217,9 @@
       "order": 12,
       "mode": 0,
       "outputs": [
-        {"name": "VAE", "type": "VAE", "links": [11, 19, 30], "slot_index": 0}
+        { "name": "VAE", "type": "VAE", "links": [11, 19, 30], "slot_index": 0 }
       ],
-      "properties": {"Node name for S&R": "VAELoader"},
+      "properties": { "Node name for S&R": "VAELoader" },
       "widgets_values": ["ae.safetensors"]
     },
     {
@@ -224,13 +230,16 @@
       "flags": {},
       "order": 13,
       "mode": 0,
-      "inputs": [
-        {"name": "clip", "type": "CLIP", "link": 8}
-      ],
+      "inputs": [{ "name": "clip", "type": "CLIP", "link": 8 }],
       "outputs": [
-        {"name": "CONDITIONING", "type": "CONDITIONING", "links": [10, 31], "slot_index": 0}
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [10, 31],
+          "slot_index": 0
+        }
       ],
-      "properties": {"Node name for S&R": "CLIPTextEncodeFlux"},
+      "properties": { "Node name for S&R": "CLIPTextEncodeFlux" },
       "widgets_values": [
         "professional headshot portrait, studio lighting, clean background, sharp focus, high quality portrait photography",
         "professional headshot portrait, studio lighting, clean background, sharp focus, high quality portrait photography",
@@ -245,13 +254,16 @@
       "flags": {},
       "order": 14,
       "mode": 0,
-      "inputs": [
-        {"name": "clip", "type": "CLIP", "link": 9}
-      ],
+      "inputs": [{ "name": "clip", "type": "CLIP", "link": 9 }],
       "outputs": [
-        {"name": "CONDITIONING", "type": "CONDITIONING", "links": [15, 32], "slot_index": 0}
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [15, 32],
+          "slot_index": 0
+        }
       ],
-      "properties": {"Node name for S&R": "CLIPTextEncodeFlux"},
+      "properties": { "Node name for S&R": "CLIPTextEncodeFlux" },
       "widgets_values": ["", "", 4.0],
       "title": "Negative Prompt (empty)"
     },
@@ -264,18 +276,28 @@
       "order": 15,
       "mode": 0,
       "inputs": [
-        {"name": "positive", "type": "CONDITIONING", "link": 10},
-        {"name": "negative", "type": "CONDITIONING", "link": 15},
-        {"name": "vae", "type": "VAE", "link": 11},
-        {"name": "pixels", "type": "IMAGE", "link": 12},
-        {"name": "mask", "type": "MASK", "link": 13}
+        { "name": "positive", "type": "CONDITIONING", "link": 10 },
+        { "name": "negative", "type": "CONDITIONING", "link": 15 },
+        { "name": "vae", "type": "VAE", "link": 11 },
+        { "name": "pixels", "type": "IMAGE", "link": 12 },
+        { "name": "mask", "type": "MASK", "link": 13 }
       ],
       "outputs": [
-        {"name": "positive", "type": "CONDITIONING", "links": [16], "slot_index": 0},
-        {"name": "negative", "type": "CONDITIONING", "links": [17], "slot_index": 1},
-        {"name": "latent", "type": "LATENT", "links": [18], "slot_index": 2}
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [16],
+          "slot_index": 0
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "links": [17],
+          "slot_index": 1
+        },
+        { "name": "latent", "type": "LATENT", "links": [18], "slot_index": 2 }
       ],
-      "properties": {"Node name for S&R": "InpaintModelConditioning"}
+      "properties": { "Node name for S&R": "InpaintModelConditioning" }
     },
     {
       "id": 13,
@@ -286,16 +308,24 @@
       "order": 16,
       "mode": 0,
       "inputs": [
-        {"name": "model", "type": "MODEL", "link": 14},
-        {"name": "positive", "type": "CONDITIONING", "link": 16},
-        {"name": "negative", "type": "CONDITIONING", "link": 17},
-        {"name": "latent_image", "type": "LATENT", "link": 18}
+        { "name": "model", "type": "MODEL", "link": 14 },
+        { "name": "positive", "type": "CONDITIONING", "link": 16 },
+        { "name": "negative", "type": "CONDITIONING", "link": 17 },
+        { "name": "latent_image", "type": "LATENT", "link": 18 }
       ],
       "outputs": [
-        {"name": "LATENT", "type": "LATENT", "links": [20], "slot_index": 0}
+        { "name": "LATENT", "type": "LATENT", "links": [20], "slot_index": 0 }
       ],
-      "properties": {"Node name for S&R": "KSampler"},
-      "widgets_values": [123456789, "randomize", 15, 3.5, "euler", "simple", 0.35]
+      "properties": { "Node name for S&R": "KSampler" },
+      "widgets_values": [
+        123456789,
+        "randomize",
+        15,
+        3.5,
+        "euler",
+        "simple",
+        0.35
+      ]
     },
     {
       "id": 14,
@@ -306,13 +336,13 @@
       "order": 17,
       "mode": 0,
       "inputs": [
-        {"name": "samples", "type": "LATENT", "link": 20},
-        {"name": "vae", "type": "VAE", "link": 19}
+        { "name": "samples", "type": "LATENT", "link": 20 },
+        { "name": "vae", "type": "VAE", "link": 19 }
       ],
       "outputs": [
-        {"name": "IMAGE", "type": "IMAGE", "links": [21], "slot_index": 0}
+        { "name": "IMAGE", "type": "IMAGE", "links": [21], "slot_index": 0 }
       ],
-      "properties": {"Node name for S&R": "VAEDecode"}
+      "properties": { "Node name for S&R": "VAEDecode" }
     },
     {
       "id": 22,
@@ -323,11 +353,16 @@
       "order": 18,
       "mode": 0,
       "outputs": [
-        {"name": "BBOX_DETECTOR", "type": "BBOX_DETECTOR", "links": [33], "slot_index": 0},
-        {"name": "SEGM_DETECTOR", "type": "SEGM_DETECTOR", "links": null}
+        {
+          "name": "BBOX_DETECTOR",
+          "type": "BBOX_DETECTOR",
+          "links": [33],
+          "slot_index": 0
+        },
+        { "name": "SEGM_DETECTOR", "type": "SEGM_DETECTOR", "links": null }
       ],
-      "properties": {"Node name for S&R": "UltralyticsDetectorProvider"},
-      "widgets_values": ["face_yolov8m.pt"],
+      "properties": { "Node name for S&R": "UltralyticsDetectorProvider" },
+      "widgets_values": ["bbox/face_yolov8m.pt"],
       "title": "Face Detection Model"
     },
     {
@@ -339,26 +374,67 @@
       "order": 19,
       "mode": 0,
       "inputs": [
-        {"name": "image", "type": "IMAGE", "link": 21},
-        {"name": "model", "type": "MODEL", "link": 28},
-        {"name": "clip", "type": "CLIP", "link": 29},
-        {"name": "vae", "type": "VAE", "link": 30},
-        {"name": "positive", "type": "CONDITIONING", "link": 31},
-        {"name": "negative", "type": "CONDITIONING", "link": 32},
-        {"name": "bbox_detector", "type": "BBOX_DETECTOR", "link": 33},
-        {"name": "sam_model_opt", "type": "SAM_MODEL", "link": null, "shape": 7},
-        {"name": "segm_detector_opt", "type": "SEGM_DETECTOR", "link": null, "shape": 7}
+        { "name": "image", "type": "IMAGE", "link": 21 },
+        { "name": "model", "type": "MODEL", "link": 28 },
+        { "name": "clip", "type": "CLIP", "link": 29 },
+        { "name": "vae", "type": "VAE", "link": 30 },
+        { "name": "positive", "type": "CONDITIONING", "link": 31 },
+        { "name": "negative", "type": "CONDITIONING", "link": 32 },
+        { "name": "bbox_detector", "type": "BBOX_DETECTOR", "link": 33 },
+        {
+          "name": "sam_model_opt",
+          "type": "SAM_MODEL",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "segm_detector_opt",
+          "type": "SEGM_DETECTOR",
+          "link": null,
+          "shape": 7
+        }
       ],
       "outputs": [
-        {"name": "image", "type": "IMAGE", "links": [22, 27], "slot_index": 0},
-        {"name": "cropped_refined", "type": "IMAGE", "links": null},
-        {"name": "cropped_enhanced_alpha", "type": "IMAGE", "links": null},
-        {"name": "mask", "type": "MASK", "links": null},
-        {"name": "detailer_pipe", "type": "DETAILER_PIPE", "links": null},
-        {"name": "cnet_images", "type": "IMAGE", "links": null}
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [22, 27],
+          "slot_index": 0
+        },
+        { "name": "cropped_refined", "type": "IMAGE", "links": null },
+        { "name": "cropped_enhanced_alpha", "type": "IMAGE", "links": null },
+        { "name": "mask", "type": "MASK", "links": null },
+        { "name": "detailer_pipe", "type": "DETAILER_PIPE", "links": null },
+        { "name": "cnet_images", "type": "IMAGE", "links": null }
       ],
-      "properties": {"Node name for S&R": "FaceDetailer"},
-      "widgets_values": [384, true, 1024, 123456789, "randomize", 15, 3.5, "euler", "simple", 0.25, 5, true, true, 0.5, 10, 3.0, 10, "", 1],
+      "properties": { "Node name for S&R": "FaceDetailer" },
+      "widgets_values": [
+        384,
+        true,
+        1024,
+        123456789,
+        "randomize",
+        15,
+        3.5,
+        "euler",
+        "simple",
+        0.25,
+        5,
+        true,
+        true,
+        0.5,
+        10,
+        3.0,
+        "center-1",
+        0,
+        0.93,
+        0,
+        0.7,
+        "False",
+        10,
+        "",
+        1
+      ],
       "title": "Face Cleanup (gentle retouching)"
     },
     {
@@ -369,10 +445,8 @@
       "flags": {},
       "order": 20,
       "mode": 0,
-      "inputs": [
-        {"name": "images", "type": "IMAGE", "link": 27}
-      ],
-      "properties": {"Node name for S&R": "PreviewImage"},
+      "inputs": [{ "name": "images", "type": "IMAGE", "link": 27 }],
+      "properties": { "Node name for S&R": "PreviewImage" },
       "title": "Enhanced Headshot"
     },
     {
@@ -383,10 +457,8 @@
       "flags": {},
       "order": 21,
       "mode": 0,
-      "inputs": [
-        {"name": "images", "type": "IMAGE", "link": 22}
-      ],
-      "properties": {"Node name for S&R": "SaveImage"},
+      "inputs": [{ "name": "images", "type": "IMAGE", "link": 22 }],
+      "properties": { "Node name for S&R": "SaveImage" },
       "widgets_values": ["linkedin_enhanced"]
     }
   ],
@@ -459,7 +531,7 @@
   ],
   "config": {},
   "extra": {
-    "ds": {"scale": 0.5, "offset": [50, 50]}
+    "ds": { "scale": 0.5, "offset": [50, 50] }
   },
   "version": 0.4
 }
