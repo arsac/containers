@@ -78,7 +78,7 @@
         {"name": "IMAGE", "type": "IMAGE", "links": [6], "slot_index": 0}
       ],
       "properties": {"Node name for S&R": "ImageScale"},
-      "widgets_values": ["lanczos", 1024, 1024, "center"]
+      "widgets_values": ["lanczos", 1024, 1024, "disabled"]
     },
     {
       "id": 6,
