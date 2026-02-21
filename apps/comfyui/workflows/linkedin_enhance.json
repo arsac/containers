@@ -418,7 +418,7 @@
         3.5,
         "euler",
         "simple",
-        0.25,
+        0.1,
         5,
         true,
         true,
@@ -435,7 +435,7 @@
         "",
         1
       ],
-      "title": "Face Cleanup (gentle retouching)"
+      "title": "Face Cleanup (very subtle)"
     },
     {
       "id": 16,
