@@ -1,4 +1,4 @@
-ARG VERSION="v0.6.0"
+ARG VERSION="v0.14.2"
 ARG PYTHON_VERSION="3.12"
 ARG BASE_IMAGE="ghcr.io/arsac/cuda-ml"
 
