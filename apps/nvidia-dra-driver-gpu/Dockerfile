@@ -18,7 +18,7 @@ WORKDIR /src
 # - adds /usr/local/glibc/usr/lib to library search paths
 # - adds /usr/local/bin to binary search paths
 COPY talos-support.patch /src/
-RUN patch -p1 < talos-support.patch
+RUN git apply talos-support.patch
 
 # Build kubelet plugin binaries using vendored dependencies
 RUN CGO_ENABLED=1 GOOS=linux \
