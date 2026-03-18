@@ -37,10 +37,14 @@ RUN sed -i \
 # which Go's security check rejects unless explicitly allowed.
 RUN CGO_LDFLAGS_ALLOW='-Wl,--unresolved-symbols=ignore-in-object-files' \
     CGO_ENABLED=1 GOOS=linux \
-    go build -mod=vendor -o /out/gpu-kubelet-plugin ./cmd/gpu-kubelet-plugin/ && \
+    go build -mod=vendor \
+        -ldflags "-X github.com/NVIDIA/k8s-dra-driver-gpu/internal/info.version=${VERSION}" \
+        -o /out/gpu-kubelet-plugin ./cmd/gpu-kubelet-plugin/ && \
     CGO_LDFLAGS_ALLOW='-Wl,--unresolved-symbols=ignore-in-object-files' \
     CGO_ENABLED=1 GOOS=linux \
-    go build -mod=vendor -o /out/compute-domain-kubelet-plugin ./cmd/compute-domain-kubelet-plugin/
+    go build -mod=vendor \
+        -ldflags "-X github.com/NVIDIA/k8s-dra-driver-gpu/internal/info.version=${VERSION}" \
+        -o /out/compute-domain-kubelet-plugin ./cmd/compute-domain-kubelet-plugin/
 
 # =============================================================================
 # Final stage: official image with patched binaries and prestart script
