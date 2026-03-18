@@ -17,18 +17,30 @@ WORKDIR /src
 # Apply Talos OS support (upstream PR #695):
 # - adds /usr/local/glibc/usr/lib to library search paths
 # - adds /usr/local/bin to binary search paths
-COPY talos-support.patch /src/
-RUN git apply talos-support.patch
+RUN sed -i \
+        's/^\(\t\t"\/lib\/aarch64-linux-gnu",\)$/\1\n\t\t"\/usr\/local\/glibc\/usr\/lib",/' \
+        cmd/gpu-kubelet-plugin/root.go \
+        cmd/compute-domain-kubelet-plugin/root.go && \
+    sed -i \
+        's/^\(\t\t"\/sbin",\)$/\1\n\t\t"\/usr\/local\/bin",/' \
+        cmd/gpu-kubelet-plugin/root.go \
+        cmd/compute-domain-kubelet-plugin/root.go && \
+    sed -i \
+        's/^\(            \/driver-root\/bin \\\)$/\1\n            \/driver-root\/usr\/local\/bin \\/' \
+        hack/kubelet-plugin-prestart.sh && \
+    sed -i \
+        's/^\(            \/driver-root\/usr\/lib\/aarch64-linux-gnu \\\)$/\1\n            \/driver-root\/usr\/local\/glibc\/usr\/lib \\/' \
+        hack/kubelet-plugin-prestart.sh
 
-# Build kubelet plugin binaries using vendored dependencies
-RUN CGO_ENABLED=1 GOOS=linux \
-    go build -mod=vendor \
-        -o /out/gpu-kubelet-plugin \
-        ./cmd/gpu-kubelet-plugin/ && \
+# Build patched kubelet plugin binaries.
+# CGO_LDFLAGS_ALLOW: vendor packages set -Wl,--unresolved-symbols=ignore-in-object-files
+# which Go's security check rejects unless explicitly allowed.
+RUN CGO_LDFLAGS_ALLOW='-Wl,--unresolved-symbols=ignore-in-object-files' \
     CGO_ENABLED=1 GOOS=linux \
-    go build -mod=vendor \
-        -o /out/compute-domain-kubelet-plugin \
-        ./cmd/compute-domain-kubelet-plugin/
+    go build -mod=vendor -o /out/gpu-kubelet-plugin ./cmd/gpu-kubelet-plugin/ && \
+    CGO_LDFLAGS_ALLOW='-Wl,--unresolved-symbols=ignore-in-object-files' \
+    CGO_ENABLED=1 GOOS=linux \
+    go build -mod=vendor -o /out/compute-domain-kubelet-plugin ./cmd/compute-domain-kubelet-plugin/
 
 # =============================================================================
 # Final stage: official image with patched binaries and prestart script

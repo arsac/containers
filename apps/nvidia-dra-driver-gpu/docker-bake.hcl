@@ -17,6 +17,10 @@ variable "SOURCE_IMAGE" {
   default = "nvcr.io/nvidia/k8s-dra-driver-gpu"
 }
 
+variable "FREE_DISK_SPACE" {
+  default = "false"
+}
+
 group "default" {
   targets = ["image-local"]
 }
