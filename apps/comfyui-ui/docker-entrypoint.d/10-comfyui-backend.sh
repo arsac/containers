@@ -16,6 +16,15 @@ host_port=$(printf '%s' "$COMFYUI_BACKEND" \
     | sed -E 's#^https?://##' \
     | sed -E 's#/$##')
 
+# COMFYUI_BACKEND must be host[:port], no path. Reject paths explicitly
+# so the operator gets a clear error instead of a cryptic nginx -t failure.
+case "$host_port" in
+    */*)
+        echo "[comfyui-ui] ERROR: COMFYUI_BACKEND must not contain a path component: ${COMFYUI_BACKEND}" >&2
+        exit 1
+        ;;
+esac
+
 # Default to port 80 if no port was specified.
 case "$host_port" in
     *:*) : ;;  # has port
