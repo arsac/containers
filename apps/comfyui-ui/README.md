@@ -30,7 +30,7 @@ curl -sL https://raw.githubusercontent.com/comfyanonymous/ComfyUI/<COMFYUI_VERSI
     | grep '^comfyui-frontend-package'
 ```
 
-The output version (e.g. `1.38.14`) should match `FRONTEND_VERSION` with a
+The output version (e.g. `1.38.14`) should match `VERSION` with a
 `v` prefix (`v1.38.14`).
 
 ## Runtime configuration
