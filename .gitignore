@@ -6,3 +6,4 @@ docker-bake.json
 .artifacts
 .mcp.json
 tmp/
+.worktrees/
