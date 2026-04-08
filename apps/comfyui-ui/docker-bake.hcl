@@ -5,7 +5,7 @@ variable "APP" {
 }
 
 # This is the ComfyUI backend version that this UI image is paired with.
-# When this changes, FRONTEND_VERSION below must be updated to the
+# When this changes, VERSION below must be updated to the
 # comfyui-frontend-package version that ComfyUI's requirements.txt pins
 # for this ComfyUI tag. The .renovaterc.json5 packageRule groups these
 # together so Renovate bumps both in one PR and a human can verify.
@@ -19,7 +19,9 @@ variable "COMFYUI_VERSION" {
 # Verify by reading:
 #   https://raw.githubusercontent.com/comfyanonymous/ComfyUI/<COMFYUI_VERSION>/requirements.txt
 # and finding the `comfyui-frontend-package==X.Y.Z` line.
-variable "FRONTEND_VERSION" {
+# Named VERSION (not FRONTEND_VERSION) so the shared CI app-options action can
+# extract it via `jq '.[] | select(.name == "VERSION") | .value'`.
+variable "VERSION" {
   // renovate: datasource=github-releases depName=Comfy-Org/ComfyUI_frontend
   default = "v1.38.14"
 }
@@ -35,7 +37,7 @@ group "default" {
 target "image" {
   inherits = ["docker-metadata-action"]
   args = {
-    FRONTEND_VERSION = "${FRONTEND_VERSION}"
+    FRONTEND_VERSION = "${VERSION}"
     COMFYUI_VERSION  = "${COMFYUI_VERSION}"
   }
   labels = {
@@ -46,7 +48,7 @@ target "image" {
 target "image-local" {
   inherits = ["image"]
   output   = ["type=docker"]
-  tags     = ["${APP}:${FRONTEND_VERSION}"]
+  tags     = ["${APP}:${VERSION}"]
 }
 
 target "image-all" {

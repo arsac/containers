@@ -12,10 +12,13 @@ This image tracks **two** versions:
 - `COMFYUI_VERSION` — the ComfyUI Python backend version this UI is paired
   with. Not shipped in this image; tracked here only for documentation and
   Renovate grouping.
-- `FRONTEND_VERSION` — the `Comfy-Org/ComfyUI_frontend` git tag whose
-  `dist.zip` is bundled as static files.
+- `VERSION` — the `Comfy-Org/ComfyUI_frontend` git tag whose
+  `dist.zip` is bundled as static files. Named `VERSION` (not
+  `FRONTEND_VERSION`) so the shared CI `app-options` action can extract it.
+  The Dockerfile ARG is still called `FRONTEND_VERSION`; the bake file passes
+  `VERSION`'s value into it.
 
-`FRONTEND_VERSION` must match the `comfyui-frontend-package` version that
+`VERSION` must match the `comfyui-frontend-package` version that
 `COMFYUI_VERSION`'s upstream `requirements.txt` pins. When Renovate bumps
 ComfyUI, it groups the backend and UI PRs together (see
 `.renovaterc.json5`) so a reviewer can update both.
@@ -61,7 +64,7 @@ cd apps/comfyui-ui
 docker buildx bake image-local
 ```
 
-Produces `comfyui-ui:<FRONTEND_VERSION>`.
+Produces `comfyui-ui:<VERSION>`.
 
 ## Running locally against a real backend
 
