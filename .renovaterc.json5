@@ -65,7 +65,6 @@
         "Comfy-Org/ComfyUI_frontend",
       ],
       groupName: "comfyui",
-      groupSlug: "comfyui",
       // Disable auto-merge for this group: a human should verify that
       // FRONTEND_VERSION in apps/comfyui-ui/docker-bake.hcl matches the
       // comfyui-frontend-package version pinned by the new ComfyUI tag's
