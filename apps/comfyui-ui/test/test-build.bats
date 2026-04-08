@@ -70,7 +70,7 @@ EOF
     docker run -d --rm --name comfyui-ui-under-test \
         --network "$NETWORK" \
         -e COMFYUI_BACKEND="http://comfyui-ui-fake-backend:80" \
-        -p "${UI_PORT}:80" \
+        -p "${UI_PORT}:8188" \
         "$IMAGE" >/dev/null
 
     # Wait for UI to be responsive (nginx reload takes <1s).

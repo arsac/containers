@@ -20,16 +20,23 @@ RUN mkdir -p /dist \
     && echo "Fetched ComfyUI_frontend ${FRONTEND_VERSION}"
 
 # =============================================================================
-# Runtime stage - nginx serving static files (config added in later task)
+# Runtime stage
 # =============================================================================
 FROM nginx:1.27-alpine
 
 ARG FRONTEND_VERSION
 ARG COMFYUI_VERSION
 
+# envsubst for the entrypoint template substitution
+RUN apk add --no-cache gettext \
+    && rm -f /etc/nginx/conf.d/default.conf
+
 COPY --from=fetch /dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker-entrypoint.d/10-comfyui-backend.sh /docker-entrypoint.d/10-comfyui-backend.sh
 
-EXPOSE 80
+RUN chmod +x /docker-entrypoint.d/10-comfyui-backend.sh \
+    && mkdir -p /var/cache/nginx/comfyui_meta \
+    && chown -R nginx:nginx /var/cache/nginx/comfyui_meta
 
-# nginx.conf is copied in a later task. For now, the default nginx config
-# (which listens on port 80) will be overridden via the per-site include.
+EXPOSE 8188
