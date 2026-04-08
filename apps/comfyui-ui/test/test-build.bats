@@ -18,11 +18,10 @@ BACKEND_PORT="18189"
 setup() {
     # Build the image once per test file run.
     if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
-        docker buildx bake \
-            --file apps/comfyui-ui/docker-bake.hcl \
+        ( cd apps/comfyui-ui && docker buildx bake \
             --set "*.tags=${IMAGE}" \
             --set "*.output=type=docker" \
-            image >&2
+            image ) >&2
     fi
 
     # Dedicated network so ui container can reach backend by name.
@@ -54,6 +53,18 @@ EOF
         -p "${BACKEND_PORT}:80" \
         nginx:1.27-alpine >/dev/null
 
+    # Wait for fake backend to be responsive (returns 404 on /).
+    local i
+    for i in 1 2 3 4 5; do
+        local code
+        code=$(curl -s -o /dev/null -w "%{http_code}" \
+            "http://localhost:${BACKEND_PORT}/" 2>/dev/null || echo "000")
+        if [[ "$code" == "404" || "$code" == "200" ]]; then
+            break
+        fi
+        sleep 1
+    done
+
     # Start UI pointing at fake backend via COMFYUI_BACKEND env var
     # (nginx.conf will substitute this into upstream directive).
     docker run -d --rm --name comfyui-ui-under-test \
@@ -63,7 +74,6 @@ EOF
         "$IMAGE" >/dev/null
 
     # Wait for UI to be responsive (nginx reload takes <1s).
-    local i
     for i in 1 2 3 4 5; do
         if curl -sf "http://localhost:${UI_PORT}/index.html" >/dev/null; then
             return 0
