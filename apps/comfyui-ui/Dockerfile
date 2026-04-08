@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.9
-
 ARG FRONTEND_VERSION="v1.38.14"
 ARG COMFYUI_VERSION="v0.14.2"
 
@@ -29,12 +27,9 @@ FROM nginx:1.27-alpine
 ARG FRONTEND_VERSION
 ARG COMFYUI_VERSION
 
-LABEL org.opencontainers.image.title="comfyui-ui"
-LABEL org.opencontainers.image.description="Static ComfyUI frontend served by nginx, paired with ComfyUI ${COMFYUI_VERSION}"
-
 COPY --from=fetch /dist /usr/share/nginx/html
 
-EXPOSE 8188
+EXPOSE 80
 
 # nginx.conf is copied in a later task. For now, the default nginx config
 # (which listens on port 80) will be overridden via the per-site include.
