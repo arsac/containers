@@ -59,6 +59,19 @@
       ignoreTests: false,
     },
     {
+      description: ["Group ComfyUI backend and UI bumps together"],
+      matchPackageNames: [
+        "comfyanonymous/ComfyUI",
+        "Comfy-Org/ComfyUI_frontend",
+      ],
+      groupName: "comfyui",
+      // Disable auto-merge for this group: a human should verify that
+      // FRONTEND_VERSION in apps/comfyui-ui/docker-bake.hcl matches the
+      // comfyui-frontend-package version pinned by the new ComfyUI tag's
+      // requirements.txt.
+      automerge: false,
+    },
+    {
       description: ["Allowed Ubuntu Version for Base Images"],
       matchDatasources: ["docker"],
       matchPackageNames: ["/ubuntu/"],
