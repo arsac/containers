@@ -27,11 +27,8 @@ jobs:
     needs: ["prepare"]
     uses: ./.github/workflows/image-builder.yaml
     permissions:
-      attestations: write
-      contents: write
-      id-token: write
-      packages: write
-      security-events: write
+      contents: read
+      packages: read
     secrets: inherit
     strategy:
       matrix:
