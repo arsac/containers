@@ -25,10 +25,13 @@ jobs:
     if: ${{ needs.prepare.outputs.changed-files != '[]' }}
     name: Build ${{ matrix.app }}
     needs: ["prepare"]
-    uses: ./.github/workflows/app-builder.yaml
+    uses: ./.github/workflows/image-builder.yaml
     permissions:
-      contents: read
-      packages: read
+      attestations: write
+      contents: write
+      id-token: write
+      packages: write
+      security-events: write
     secrets: inherit
     strategy:
       matrix:
@@ -36,7 +39,7 @@ jobs:
       fail-fast: false
       max-parallel: 4
     with:
-      app: ${{ matrix.app }}
+      image: ${{ matrix.app }}
       release: false
 
   status:
