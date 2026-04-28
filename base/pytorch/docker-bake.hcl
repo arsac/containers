@@ -39,3 +39,12 @@ target "image-devel-all" {
   inherits  = ["image-devel"]
   platforms = ["linux/amd64"]
 }
+
+// `image-all` is a metadata stub — the CI `app-options` action reads platforms
+// from it regardless of variant. The runtime build job is gated on
+// Dockerfile.runtime existence in release.yaml, so this target is never
+// actually built for base/pytorch (no Dockerfile.runtime exists).
+target "image-all" {
+  inherits  = ["image-devel"]
+  platforms = ["linux/amd64"]
+}
