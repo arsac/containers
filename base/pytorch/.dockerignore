@@ -1,0 +1,5 @@
+# Ignore everything except the files we explicitly need in the build context.
+*
+
+!Dockerfile
+!docker-bake.hcl
