@@ -37,6 +37,7 @@ jobs:
     outputs:
       changed-apps: ${{ steps.changed-apps.outputs.changed_files }}
       changed-bases: ${{ steps.changed-bases.outputs.changed_files }}
+      changed-bases-runtime: ${{ steps.filter-runtime.outputs.bases }}
     steps:
       - name: Get Changed Apps
         id: changed-apps
@@ -54,10 +55,39 @@ jobs:
           include_only_directories: true
           max_depth: 1
 
+      - name: Checkout (for runtime filter)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Filter Bases With Runtime Variant
+        id: filter-runtime
+        env:
+          CHANGED_BASES: ${{ steps.changed-bases.outputs.changed_files }}
+          DISPATCH_TYPE: ${{ github.event_name == 'workflow_dispatch' && inputs.type || '' }}
+          DISPATCH_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.image || '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$DISPATCH_TYPE" == "base" ]]; then
+            candidates=$(jq -nc --arg b "$DISPATCH_IMAGE" '[$b]')
+          else
+            candidates="${CHANGED_BASES:-[]}"
+          fi
+          bases='[]'
+          for b in $(echo "$candidates" | jq -r '.[]'); do
+            if [[ -f "base/$b/Dockerfile.runtime" ]]; then
+              bases=$(echo "$bases" | jq --arg b "$b" '. + [$b]')
+            fi
+          done
+          echo "Runtime-variant bases: $bases"
+          echo "bases=$bases" >> "$GITHUB_OUTPUT"
+
   # Build base images: devel first, then runtime (runtime pulls from published devel)
-  # Runtime variant - depends on devel being published first
+  # Runtime variant - depends on devel being published first.
+  # Only runs for bases that have a Dockerfile.runtime; devel-only bases are skipped.
   build-bases:
-    if: ${{ always() && !failure() && !cancelled() && (needs.prepare.outputs.changed-bases != '[]' || (github.event_name == 'workflow_dispatch' && inputs.type == 'base')) }}
+    if: ${{ always() && !failure() && !cancelled() && needs.prepare.outputs.changed-bases-runtime != '[]' }}
     name: Build Base ${{ matrix.base }}
     needs: ["prepare", "build-bases-devel"]
     uses: ./.github/workflows/image-builder.yaml
@@ -70,7 +100,7 @@ jobs:
     secrets: inherit
     strategy:
       matrix:
-        base: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', inputs.image)) || fromJSON(needs.prepare.outputs.changed-bases) }}
+        base: ${{ fromJSON(needs.prepare.outputs.changed-bases-runtime) }}
       fail-fast: false
     with:
       image: ${{ matrix.base }}
