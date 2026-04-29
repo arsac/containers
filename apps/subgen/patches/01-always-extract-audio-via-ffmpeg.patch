@@ -1,0 +1,32 @@
+From: home-ops downstream
+Subject: Always extract audio via external ffmpeg
+
+faster-whisper's internal PyAV-based decoder fails on certain DTS
+streams with `Frame does not match AudioFifo parameters`, leaving
+PyAV in a corrupted state that segfaults the entire process on the
+next decode call. Documented upstream:
+
+  https://github.com/Purfview/whisper-standalone-win/issues/236
+
+subgen already has `extract_audio_track_to_memory()` which uses
+ffmpeg-python (subprocess) and correctly handles the same files
+that crash PyAV. The original code only invoked this path when a
+file had multiple audio tracks; this patch makes external ffmpeg
+extraction the default for any file with at least one audio track,
+so faster-whisper always receives clean mono 16kHz WAV bytes.
+
+---
+ subgen.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/subgen.py
++++ b/subgen.py
+@@ -1517,7 +1517,7 @@
+     audio_bytes = None
+     audio_tracks = get_audio_tracks(file_path)
+
+-    if len(audio_tracks) > 1:
++    if audio_tracks:
+         logging.debug(f"Handling multiple audio tracks from {file_path} and planning to extract audio track of language {language}")
+         logging.debug(
+             "Audio tracks:\n"
