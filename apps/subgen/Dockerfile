@@ -30,10 +30,11 @@ RUN git clone https://github.com/McCloudS/subgen.git . && \
 # git apply fails loudly if a hunk doesn't match — so an upstream
 # rename or refactor will fail the build instead of silently
 # producing a broken image.
-COPY patches/01-always-extract-audio-via-ffmpeg.patch /tmp/01-always-extract-audio-via-ffmpeg.patch
-RUN git apply --verbose /tmp/01-always-extract-audio-via-ffmpeg.patch && \
-    rm -f /tmp/01-always-extract-audio-via-ffmpeg.patch && \
-    rm -rf .git
+COPY patches/ /tmp/patches/
+RUN for p in /tmp/patches/*.patch; do \
+      echo "Applying $p" && git apply --verbose "$p"; \
+    done && \
+    rm -rf /tmp/patches .git
 
 RUN mkdir -p /cache
 
