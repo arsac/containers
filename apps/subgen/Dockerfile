@@ -10,7 +10,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-pip ffmpeg curl gosu tzdata && \
+    python3 python3-pip ffmpeg git gosu tzdata && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install torch with cu128 for Blackwell, then SubGen deps
@@ -20,13 +20,21 @@ RUN python3 -m pip install -U --no-cache-dir --break-system-packages \
         numpy stable-ts-whisperless fastapi requests faster-whisper \
         uvicorn python-multipart ffmpeg-python watchdog
 
-# Pin SubGen to a specific commit
+# Pin SubGen to a specific upstream commit.
 WORKDIR /subgen
-RUN curl -fsSL "https://raw.githubusercontent.com/McCloudS/subgen/${VERSION}/subgen.py" -o subgen.py && \
-    curl -fsSL "https://raw.githubusercontent.com/McCloudS/subgen/${VERSION}/launcher.py" -o launcher.py && \
-    curl -fsSL "https://raw.githubusercontent.com/McCloudS/subgen/${VERSION}/language_code.py" -o language_code.py && \
-    curl -fsSL "https://raw.githubusercontent.com/McCloudS/subgen/${VERSION}/entrypoint.sh" -o /entrypoint.sh && \
-    chmod +x /entrypoint.sh
+RUN git clone https://github.com/McCloudS/subgen.git . && \
+    git checkout "${VERSION}" && \
+    cp entrypoint.sh /entrypoint.sh && chmod +x /entrypoint.sh
+
+# Apply downstream patches against the pinned upstream tree.
+# git apply fails loudly if a hunk doesn't match — so an upstream
+# rename or refactor will fail the build instead of silently
+# producing a broken image.
+COPY patches/ /tmp/patches/
+RUN for p in /tmp/patches/*.patch; do \
+      echo "Applying $p" && git apply --verbose "$p"; \
+    done && \
+    rm -rf /tmp/patches .git
 
 RUN mkdir -p /cache
 
