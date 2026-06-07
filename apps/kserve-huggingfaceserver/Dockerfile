@@ -47,6 +47,45 @@ RUN uv pip uninstall cupy-cuda12x && \
 #    exact tuple shape SupportsHMA requires, so flatten-and-delegate works.
 RUN python3 -c "import vllm.distributed.kv_transfer.kv_connector.v1.lmcache_connector as m; p=m.__file__; s=open(p).read(); s=s.replace('from vllm.distributed.kv_transfer.kv_connector.v1.base import (','from vllm.distributed.kv_transfer.kv_connector.v1.base import (\n    SupportsHMA,'); s=s.replace('class LMCacheConnectorV1(KVConnectorBase_V1):','class LMCacheConnectorV1(KVConnectorBase_V1, SupportsHMA):'); s=s.replace('        return self._lmcache_engine.request_finished(request, block_ids)\n','        return self._lmcache_engine.request_finished(request, block_ids)\n\n    def request_finished_all_groups(self, request, block_ids):\n        flat_ids = [bid for group in block_ids for bid in group]\n        return self._lmcache_engine.request_finished(request, flat_ids)\n'); assert 'class LMCacheConnectorV1(KVConnectorBase_V1, SupportsHMA):' in s, 'HMA patch: class anchor not found'; assert 'request_finished_all_groups' in s, 'HMA patch: method not inserted'; open(p,'w').write(s); print(f'Patched {p}')"
 
+# Patch lmcache 0.4.6's VLLMPagedMemGPUConnectorV3 to use a per-group head_size.
+# Regression in the 0.4.6 release: the multi-group store/load loops pass a
+# single scalar `head_size=self.head_size` (the first layer's) to every group's
+# multi_layer_kv_transfer. Gemma 4's sliding-window (local) and full-attention
+# (global) layers have different head dims, so the second group's transfer hits
+# an exact 2x tensor mismatch (gpu_connectors.py from_gpu) and crashes vLLM
+# EngineCore. Only trips when the multi-group store path is exercised under
+# fp8 KV -- i.e. multimodal sequences; text and tool-calling don't reach it.
+# Each group already carries its own head_size at group.shape_desc.hs; pass it.
+# Scoped to the V3 class so the single-group non-V3 connector is left alone.
+# Not fixed in lmcache dev/nightly as of 2026-06-07.
+RUN python3 <<'PYEOF'
+import importlib.util, py_compile
+# Locate the file WITHOUT importing the module: importing gpu_connectors pulls
+# in the c_ops CUDA extension, which need not load during the build.
+spec = importlib.util.find_spec("lmcache.v1.gpu_connector.gpu_connectors")
+assert spec and spec.origin, "lmcache gpu_connectors module not found"
+p = spec.origin
+s = open(p).read()
+cls = "class VLLMPagedMemGPUConnectorV3"
+i = s.index(cls)
+j = s.index("\nclass ", i + 1)
+head, body, tail = s[:i], s[i:j], s[j:]
+old = "head_size=self.head_size,"
+new = "head_size=self.metadata.kv_layer_groups_manager.kv_layer_groups[i].shape_desc.hs,"
+n = body.count(old)
+assert n == 3, f"lmcache head_size patch: expected 3 sites in V3, found {n}"
+# Guard the runtime attribute the patch depends on: head_size lives at
+# group.shape_desc.hs (kv_layer_groups defines hidden_dim_size as nh * hs).
+# A future lmcache bump that renames it would pass py_compile but crash at
+# inference -- catch it here instead.
+klg = importlib.util.find_spec("lmcache.v1.kv_layer_groups").origin
+assert ".shape_desc.hs" in open(klg).read(), \
+    "lmcache head_size patch: group.shape_desc.hs no longer present in kv_layer_groups"
+open(p, "w").write(head + body.replace(old, new) + tail)
+py_compile.compile(p, doraise=True)  # fail the build if the edit broke syntax
+print(f"Patched {p}: {n} per-group head_size sites in {cls}")
+PYEOF
+
 # flashinfer AOT jit-cache matching the flashinfer-cubin version vllm pulls in:
 # the image has no nvcc, so kernels missing from the AOT cache cannot be
 # JIT-compiled at runtime. Only a cu130 wheel index exists; cu130 wheels are
