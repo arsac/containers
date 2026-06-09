@@ -1,0 +1,92 @@
+diff --git a/python/huggingface_server.Dockerfile b/python/huggingface_server.Dockerfile
+index 4daa0bbf8..6d1699701 100644
+--- a/python/huggingface_server.Dockerfile
++++ b/python/huggingface_server.Dockerfile
+@@ -130,8 +130,7 @@ WORKDIR ${WORKSPACE_DIR}
+ FROM base AS build
+ 
+ ARG WORKSPACE_DIR
+-ARG VLLM_VERSION=0.20.0
+-ARG LMCACHE_VERSION=0.4.4
++ARG VLLM_VERSION=0.22.1
+ 
+ WORKDIR ${WORKSPACE_DIR}
+ 
+@@ -168,8 +167,34 @@ RUN --mount=type=cache,target=/root/.cache/uv cd huggingfaceserver && uv sync --
+ # https://docs.vllm.ai/en/latest/models/extensions/fastsafetensor.html
+ RUN --mount=type=cache,target=/root/.cache/uv uv pip install vllm[runai,tensorizer,fastsafetensors]==${VLLM_VERSION}
+ 
+-# Install lmcache
+-RUN --mount=type=cache,target=/root/.cache/uv uv pip install lmcache==${LMCACHE_VERSION}
++# transformers 5.5.x for Gemma 4 (kserve uv.lock pins 4.57.1, which lacks
++# transformers.models.gemma4). 5.5.3 is the version vLLM tests against.
++ARG TRANSFORMERS_VERSION=5.5.3
++RUN --mount=type=cache,target=/root/.cache/uv uv pip install "transformers==${TRANSFORMERS_VERSION}"
++
++# Gemma 4 needs transformers 5.5.x (the lock resolves 4.57.1, which has no
++# gemma4 config; vllm 0.22.1 tests against 5.5.3 and gemma4_mm imports
++# transformers.models.gemma4 at module load).
++RUN --mount=type=cache,target=/root/.cache/uv uv pip install transformers==5.5.3
++
++# vLLM 0.22.1's fused_moe loads nixl_ep, and the stock nixl-cu12 wheel links
++# libcudart.so.12 (absent in this CUDA 13 image) -> ImportError that crashes
++# model architecture inspection at engine init. Swap to the cu13 nixl build so
++# nixl_ep resolves libcudart.so.13.
++RUN --mount=type=cache,target=/root/.cache/uv \
++    uv pip uninstall nixl-cu12 || true && \
++    uv pip install nixl-cu13
++
++# Build-time smoke tests: fail the BUILD (not the cluster) on the two
++# regressions that took 2026.06.09-gpu down --
++#   import nixl_ep                 -> the cu13 nixl / libcudart.so.13 swap
++#   import ...models.gemma4_mm     -> transformers gemma4 support
++RUN python3 -c "import nixl_ep" \
++    && python3 -c "import vllm.model_executor.models.gemma4_mm"
++
++# lmcache install removed: this image uses vLLM's native OffloadingConnector
++# (SupportsHMA in 0.22.1) for HMA-correct CPU KV offload, not lmcache. lmcache
++# 0.4.4 also links cu12 libs that break on the CUDA 13.2 base (LMCache#2843).
+ 
+ # Generate third-party licenses
+ COPY pyproject.toml pyproject.toml
+diff --git a/python/huggingfaceserver/huggingfaceserver/vllm/vllm_model.py b/python/huggingfaceserver/huggingfaceserver/vllm/vllm_model.py
+index 8206f88d2..7f9c07558 100644
+--- a/python/huggingfaceserver/huggingfaceserver/vllm/vllm_model.py
++++ b/python/huggingfaceserver/huggingfaceserver/vllm/vllm_model.py
+@@ -29,7 +29,7 @@ from vllm.tool_parsers import ToolParserManager
+ from vllm.entrypoints.openai.models.protocol import BaseModelPath
+ from vllm.entrypoints.openai.models.serving import OpenAIServingModels
+ from vllm.entrypoints.openai.cli_args import validate_parsed_serve_args
+-from vllm.entrypoints.chat_utils import load_chat_template
++from vllm.entrypoints.chat_utils import load_chat_template, ChatTemplateConfig
+ from vllm.entrypoints.openai.engine.protocol import ErrorResponse as engineError
+ from vllm.reasoning import ReasoningParserManager
+ 
+@@ -196,9 +196,11 @@ class VLLMModel(OpenAIEncoderModel, OpenAIGenerativeModel):  # pylint:disable=c-
+                     self.engine_client,
+                     self.openai_serving_models,
+                     request_logger=self.request_logger,
+-                    chat_template=resolved_chat_template,
+-                    chat_template_content_format=self.args.chat_template_content_format,
+-                    trust_request_chat_template=self.args.trust_request_chat_template,
++                    chat_template_config=ChatTemplateConfig(
++                        chat_template=resolved_chat_template,
++                        chat_template_content_format=self.args.chat_template_content_format,
++                        trust_request_chat_template=self.args.trust_request_chat_template,
++                    ),
+                     log_error_stack=self.args.log_error_stack,
+                 )
+                 if "embed" in supported_tasks
+@@ -210,6 +212,12 @@ class VLLMModel(OpenAIEncoderModel, OpenAIGenerativeModel):  # pylint:disable=c-
+                     self.engine_client,
+                     self.openai_serving_models,
+                     request_logger=self.request_logger,
++                    supported_tasks=supported_tasks,
++                    chat_template_config=ChatTemplateConfig(
++                        chat_template=resolved_chat_template,
++                        chat_template_content_format=self.args.chat_template_content_format,
++                        trust_request_chat_template=self.args.trust_request_chat_template,
++                    ),
+                     log_error_stack=self.args.log_error_stack,
+                 )
+                 if ("embed" in supported_tasks or "classify" in supported_tasks)
