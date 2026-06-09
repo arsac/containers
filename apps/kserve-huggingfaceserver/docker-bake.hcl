@@ -4,9 +4,9 @@ variable "APP" {
   default = "kserve-huggingfaceserver"
 }
 
-# Pinned upstream kserve commit. prepare.sh clones this ref and applies
-# patches/ before bake runs. Bumping it = re-test the patch applies (git apply
-# fails loudly on drift) + re-validate on GPU.
+# Pinned upstream kserve commit. The Dockerfile's `src` stage fetches this ref
+# and applies patches/. Bumping it = re-test the patch applies (git apply fails
+# loudly on drift) + re-validate on GPU. Renovate tracks kserve commits.
 variable "KSERVE_REF" {
   // renovate: datasource=git-refs depName=kserve packageName=https://github.com/kserve/kserve
   default = "11ad2ca18a2265b079bd140220572017ad06bdfc"
@@ -20,13 +20,11 @@ group "default" {
   targets = ["image-local"]
 }
 
-# Context is the patched upstream tree produced by prepare.sh; we build kserve's
-# OWN huggingface_server.Dockerfile (patched to vLLM 0.22.1 + transformers 5.5.3,
-# lmcache dropped) — not a Dockerfile we vendor.
 target "image" {
-  inherits   = ["docker-metadata-action"]
-  context    = ".src/python"
-  dockerfile = "huggingface_server.Dockerfile"
+  inherits = ["docker-metadata-action"]
+  args = {
+    KSERVE_REF = "${KSERVE_REF}"
+  }
   labels = {
     "org.opencontainers.image.source"   = "${SOURCE}"
     "org.opencontainers.image.revision" = "${KSERVE_REF}"
