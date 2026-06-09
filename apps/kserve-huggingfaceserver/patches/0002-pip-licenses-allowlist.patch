@@ -1,0 +1,15 @@
+diff --git a/python/pyproject.toml b/python/pyproject.toml
+index 734aa2c2b..3e85f6e8d 100644
+--- a/python/pyproject.toml
++++ b/python/pyproject.toml
+@@ -42,7 +42,10 @@ ignore-packages = [
+   # Shared across CUDA versions
+   "nvidia-cutlass-dsl",
+   "nvidia-cutlass-dsl-libs-base",
++  "nvidia-cutlass-dsl-libs-cu13",
+   "nvidia-cudnn-frontend",
++  # vLLM 0.22.1 transitive deps (manual license review)
++  "pyelftools",
+   # Intel EULA
+   "intel-openmp", "intel-cmplr-lib-ur",
+   # Intel Simplified Software License
