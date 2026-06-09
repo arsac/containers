@@ -29,6 +29,20 @@ variable "FREE_DISK_SPACE" {
   default = "true"
 }
 
+# Internal registry publishing (.forgejo/workflows/publish.yaml). This image's
+# flashinfer/CUDA layers are too large to pull from ghcr over WAN (~90 min), so
+# the cluster pulls it from a LAN registry instead. REGISTRY is injected at
+# build time from a CI secret (the `forgejo` target is only built there); the
+# host is never committed to this public repo.
+variable "REGISTRY" {
+  default = ""
+}
+
+# Dated calver tag set by the publish workflow (e.g. 2026.06.09-<sha7>).
+variable "TAG" {
+  default = ""
+}
+
 group "default" {
   targets = ["image-local"]
 }
@@ -53,4 +67,15 @@ target "image-local" {
 target "image-all" {
   inherits  = ["image"]
   platforms = ["linux/amd64"]
+}
+
+# Built + pushed by the in-cluster Forgejo runner to the internal registry.
+# `docker buildx bake forgejo` (with docker/bake-action push:true).
+target "forgejo" {
+  inherits  = ["image"]
+  platforms = ["linux/amd64"]
+  tags = [
+    "${REGISTRY}/${APP}:${TAG}",
+    "${REGISTRY}/${APP}:${VERSION}",
+  ]
 }
