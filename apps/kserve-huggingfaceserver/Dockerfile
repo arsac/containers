@@ -1,105 +1,48 @@
-ARG VERSION="v0.19.0-rc0"
+# Slim one-package overlay on stock kserve/huggingfaceserver.
+#
+# vLLM 0.20.0 (in the stock image) natively registers JinaForRanking,
+# Gemma4ForConditionalGeneration/ForCausalLM, and the gemma4 tool/reasoning
+# parsers — so the only gap is transformers: the base resolves 4.57.1, which
+# lacks transformers.models.gemma4 (Gemma 4 needs >=5.5). Everything else the
+# prior overlay carried (lmcache, the SupportsHMA monkey-patch, the torch
+# LD_LIBRARY_PATH hack, peft, flashinfer-jit-cache) is dropped:
+#  - lmcache + SupportsHMA: root cause of the Gemma 4 multi-group KV livelock/
+#    crash; replaced by vLLM-native HMA + (durably) OffloadingConnector.
+#  - peft: not a huggingfaceserver dependency; jina-reranker-v3 modeling.py has
+#    zero peft refs (embeddings run on TEI, a separate image).
+#  - flashinfer-jit-cache: gemma4 uses TRITON_ATTN, the reranker uses
+#    FLASH_ATTN; flashinfer-python is already in the base. Re-add ONLY if boot
+#    raises a CUDA "no kernel image" error.
+#
+# Carrying zero patches against fast-moving vLLM internals is the point: the
+# previous fork's source builds and monkey-patches are what crash-looped on
+# rebuilds. This rides the stock base; when an upstream tag bundles
+# transformers >=5.5, even this overlay disappears.
 
+# Base tag is renovate-tracked via VERSION in docker-bake.hcl (repo's bake
+# custom manager); passed in as a build ARG. v0.19.0-rc0 bundles vLLM 0.20.0.
+ARG VERSION=v0.19.0-rc0
 FROM kserve/huggingfaceserver:${VERSION}-gpu
 
-# Overlay on the upstream GPU image with the fixes needed to serve
-# google/gemma-4-31B-it (with lmcache + hybrid KV cache) and
-# jinaai/jina-reranker-v3. Replaces the full-build fork at
-# github.com/arsac/kserve (gemma4-stable / gemma4-cu130 branches).
 ARG TRANSFORMERS_VERSION=5.5.3
-ARG LMCACHE_VERSION=0.4.6
 
 USER root
 
-# The prod venv is uv-managed and ships neither pip nor uv; bring uv along.
-# It targets the venv via the VIRTUAL_ENV env already set in the base image.
+# The prod venv is uv-managed (and ships neither pip nor uv); install with uv,
+# the venv's native tool, targeting the active venv via the base's VIRTUAL_ENV.
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# transformers: the upstream image resolves 4.57.x, which has no gemma4 config;
-#   vllm's gemma4 modules import transformers.models.gemma4 directly and fail
-#   without 5.5+. 5.5.3 matches vllm v0.20.0's test lockfile.
-# lmcache: the 0.4.4 wheel pinned upstream links cu12 libraries (cupy-cuda12x,
-#   libcudart.so.12) that don't exist in the cu13 image (LMCache/LMCache#2843).
-#   Uninstall cupy-cuda12x first: both cupy wheels ship the same `cupy` package
-#   dir, so upgrading in place would leave mixed cu12/cu13 binaries behind.
-#   lmcache's `nixl` meta-dep pulls both nixl-cu12 and nixl-cu13; the Python
-#   module lives in the meta package and the cuNN packages only carry native
-#   libs in separate dirs, so dropping nixl-cu12 alone is safe and sufficient.
-# peft: required at runtime by jina-embeddings-v5's custom model code
-#   (auto_map registration fails without it and vLLM can't find the module).
-RUN uv pip uninstall cupy-cuda12x && \
-    uv pip install --no-cache \
-        transformers==${TRANSFORMERS_VERSION} \
-        lmcache==${LMCACHE_VERSION} \
-        peft && \
-    uv pip uninstall nixl-cu12
+# The stock base bakes in lmcache 0.4.4 + its cu12 deps (cupy-cuda12x,
+# nixl-cu12) via the upstream Dockerfile. We do NOT use lmcache (the durable
+# fix is vLLM's native OffloadingConnector), and cupy-cuda12x links
+# libcudart.so.12 — which does not exist in this cu13 image. Left in place it's
+# a dormant landmine: any future --kv-transfer-config=LMCacheConnectorV1 would
+# crash-loop on libcudart.so.12. Strip it so that failure mode is impossible
+# and the image is cu13-coherent. (Package-level removal, not a patch against
+# vLLM internals — robust across base bumps.) `|| true` so the build still
+# succeeds if a future upstream base stops shipping these (nothing to remove).
+RUN uv pip uninstall lmcache cupy-cuda12x nixl-cu12 || true
 
-# Patch vLLM's LMCacheConnectorV1 wrapper with SupportsHMA so the hybrid KV
-# cache manager stays enabled alongside --kv-transfer-config. Without it,
-# sliding-window models like Gemma 4 allocate full-context KV for every layer
-# (~110GB at 128k context instead of ~10.6GB). This patch is the entire HMA
-# story (not implemented upstream as of vLLM 0.22):
-#  - vLLM's factory gates HMA on supports_hma(<wrapper class>), and the
-#    scheduler then calls request_finished_all_groups(request, group_lists)
-#    instead of request_finished(request, group_lists[0]).
-#  - lmcache's multi-group data path (kv_layer_groups) already exists in
-#    0.4.6; its request_finished takes a flat list[int] and returns the
-#    exact tuple shape SupportsHMA requires, so flatten-and-delegate works.
-RUN python3 -c "import vllm.distributed.kv_transfer.kv_connector.v1.lmcache_connector as m; p=m.__file__; s=open(p).read(); s=s.replace('from vllm.distributed.kv_transfer.kv_connector.v1.base import (','from vllm.distributed.kv_transfer.kv_connector.v1.base import (\n    SupportsHMA,'); s=s.replace('class LMCacheConnectorV1(KVConnectorBase_V1):','class LMCacheConnectorV1(KVConnectorBase_V1, SupportsHMA):'); s=s.replace('        return self._lmcache_engine.request_finished(request, block_ids)\n','        return self._lmcache_engine.request_finished(request, block_ids)\n\n    def request_finished_all_groups(self, request, block_ids):\n        flat_ids = [bid for group in block_ids for bid in group]\n        return self._lmcache_engine.request_finished(request, flat_ids)\n'); assert 'class LMCacheConnectorV1(KVConnectorBase_V1, SupportsHMA):' in s, 'HMA patch: class anchor not found'; assert 'request_finished_all_groups' in s, 'HMA patch: method not inserted'; open(p,'w').write(s); print(f'Patched {p}')"
-
-# Patch lmcache 0.4.6's VLLMPagedMemGPUConnectorV3 to use a per-group head_size.
-# Regression in the 0.4.6 release: the multi-group store/load loops pass a
-# single scalar `head_size=self.head_size` (the first layer's) to every group's
-# multi_layer_kv_transfer. Gemma 4's sliding-window (local) and full-attention
-# (global) layers have different head dims, so the second group's transfer hits
-# an exact 2x tensor mismatch (gpu_connectors.py from_gpu) and crashes vLLM
-# EngineCore. Only trips when the multi-group store path is exercised under
-# fp8 KV -- i.e. multimodal sequences; text and tool-calling don't reach it.
-# Each group already carries its own head_size at group.shape_desc.hs; pass it.
-# Scoped to the V3 class so the single-group non-V3 connector is left alone.
-# Not fixed in lmcache dev/nightly as of 2026-06-07.
-RUN python3 <<'PYEOF'
-import importlib.util, py_compile
-# Locate the file WITHOUT importing the module: importing gpu_connectors pulls
-# in the c_ops CUDA extension, which need not load during the build.
-spec = importlib.util.find_spec("lmcache.v1.gpu_connector.gpu_connectors")
-assert spec and spec.origin, "lmcache gpu_connectors module not found"
-p = spec.origin
-s = open(p).read()
-cls = "class VLLMPagedMemGPUConnectorV3"
-i = s.index(cls)
-j = s.index("\nclass ", i + 1)
-head, body, tail = s[:i], s[i:j], s[j:]
-old = "head_size=self.head_size,"
-new = "head_size=self.metadata.kv_layer_groups_manager.kv_layer_groups[i].shape_desc.hs,"
-n = body.count(old)
-assert n == 3, f"lmcache head_size patch: expected 3 sites in V3, found {n}"
-# Guard the runtime attribute the patch depends on: head_size lives at
-# group.shape_desc.hs (kv_layer_groups defines hidden_dim_size as nh * hs).
-# A future lmcache bump that renames it would pass py_compile but crash at
-# inference -- catch it here instead.
-klg = importlib.util.find_spec("lmcache.v1.kv_layer_groups").origin
-assert ".shape_desc.hs" in open(klg).read(), \
-    "lmcache head_size patch: group.shape_desc.hs no longer present in kv_layer_groups"
-open(p, "w").write(head + body.replace(old, new) + tail)
-py_compile.compile(p, doraise=True)  # fail the build if the edit broke syntax
-print(f"Patched {p}: {n} per-group head_size sites in {cls}")
-PYEOF
-
-# flashinfer AOT jit-cache matching the flashinfer-cubin version vllm pulls in:
-# the image has no nvcc, so kernels missing from the AOT cache cannot be
-# JIT-compiled at runtime. Only a cu130 wheel index exists; cu130 wheels are
-# minor-version compatible with the CUDA 13.2 runtime.
-# https://docs.flashinfer.ai/installation.html
-RUN FLASHINFER_VERSION=$(uv pip show flashinfer-cubin | awk '/^Version:/{print $2}') && \
-    uv pip install --no-cache flashinfer-jit-cache==${FLASHINFER_VERSION} \
-        --extra-index-url https://flashinfer.ai/whl/cu130 && \
-    flashinfer show-config
-
-# PyTorch libs (libc10.so, libtorch_cpu.so, etc.) for lmcache's c_ops
-# extension: the wheel links them without an RPATH, so loading c_ops before
-# torch is imported fails otherwise. The venv interpreter is a uv-managed
-# Python 3.12 (not Ubuntu 25.10's system 3.13).
-ENV LD_LIBRARY_PATH="/kserve-workspace/prod_venv/lib/python3.12/site-packages/torch/lib:${LD_LIBRARY_PATH}"
+RUN uv pip install --no-cache "transformers==${TRANSFORMERS_VERSION}"
 
 USER 1000
