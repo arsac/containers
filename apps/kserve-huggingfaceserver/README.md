@@ -17,8 +17,12 @@ changes:
   lock pins 4.57.1, which lacks `transformers.models.gemma4`); swap nixl-cu12 →
   nixl-cu13 (vLLM 0.22.1's fused_moe loads `nixl_ep`, which links
   libcudart.so.13); a build-time `import nixl_ep && import gemma4_mm` smoke test.
-- **Source patch** (`patches/`): the vLLM 0.22 serving-constructor API change in
-  `vllm_model.py` (`ChatTemplateConfig`, `supported_tasks`).
+- **Source patches** (`patches/`):
+  - `0001` — the vLLM 0.22 serving-constructor API change in `vllm_model.py`
+    (`ChatTemplateConfig`, `supported_tasks`).
+  - `0002` — `pyproject.toml` license allowlist: ignore `pyelftools` (Public
+    Domain) and `nvidia-cutlass-dsl-libs-cu13` (proprietary), two new 0.22.1
+    transitive deps that otherwise fail kserve's `pip-licenses.py` gate.
 
 The `src` stage fetches the pinned kserve tree (shallow, by SHA) and applies
 `patches/`; the build stage's `COPY`s pull from that stage (`--from=src`) instead
