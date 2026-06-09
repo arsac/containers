@@ -1,5 +1,5 @@
 diff --git a/python/huggingface_server.Dockerfile b/python/huggingface_server.Dockerfile
-index 4daa0bbf8..6d1699701 100644
+index 4daa0bbf8..9153c764d 100644
 --- a/python/huggingface_server.Dockerfile
 +++ b/python/huggingface_server.Dockerfile
 @@ -130,8 +130,7 @@ WORKDIR ${WORKSPACE_DIR}
@@ -12,17 +12,12 @@ index 4daa0bbf8..6d1699701 100644
  
  WORKDIR ${WORKSPACE_DIR}
  
-@@ -168,8 +167,34 @@ RUN --mount=type=cache,target=/root/.cache/uv cd huggingfaceserver && uv sync --
+@@ -168,8 +167,29 @@ RUN --mount=type=cache,target=/root/.cache/uv cd huggingfaceserver && uv sync --
  # https://docs.vllm.ai/en/latest/models/extensions/fastsafetensor.html
  RUN --mount=type=cache,target=/root/.cache/uv uv pip install vllm[runai,tensorizer,fastsafetensors]==${VLLM_VERSION}
  
 -# Install lmcache
 -RUN --mount=type=cache,target=/root/.cache/uv uv pip install lmcache==${LMCACHE_VERSION}
-+# transformers 5.5.x for Gemma 4 (kserve uv.lock pins 4.57.1, which lacks
-+# transformers.models.gemma4). 5.5.3 is the version vLLM tests against.
-+ARG TRANSFORMERS_VERSION=5.5.3
-+RUN --mount=type=cache,target=/root/.cache/uv uv pip install "transformers==${TRANSFORMERS_VERSION}"
-+
 +# Gemma 4 needs transformers 5.5.x (the lock resolves 4.57.1, which has no
 +# gemma4 config; vllm 0.22.1 tests against 5.5.3 and gemma4_mm imports
 +# transformers.models.gemma4 at module load).

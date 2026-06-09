@@ -28,7 +28,7 @@ upstream at the pinned ref and applies the patch into `.src/` (gitignored),
 then bake builds `.src/python/huggingface_server.Dockerfile`:
 
 ```sh
-KSERVE_REF=$(grep -oE '[0-9a-f]{40}' docker-bake.hcl | head -1) ./prepare.sh
+KSERVE_REF=$(grep -oP '(?<=default = ")[0-9a-f]{40}(?=")' docker-bake.hcl) ./prepare.sh
 docker buildx bake image-all
 ```
 

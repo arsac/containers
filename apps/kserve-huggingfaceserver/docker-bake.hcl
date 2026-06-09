@@ -28,7 +28,8 @@ target "image" {
   context    = ".src/python"
   dockerfile = "huggingface_server.Dockerfile"
   labels = {
-    "org.opencontainers.image.source" = "${SOURCE}"
+    "org.opencontainers.image.source"   = "${SOURCE}"
+    "org.opencontainers.image.revision" = "${KSERVE_REF}"
   }
 }
 
