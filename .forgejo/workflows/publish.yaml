@@ -1,0 +1,67 @@
+name: Publish (Forgejo)
+
+# Publishes kserve-huggingfaceserver to an INTERNAL LAN registry so the cluster
+# pulls it quickly. ghcr serves this image's large CUDA/flashinfer layers too
+# slowly over WAN (~90 min/pull), which caused an LLM outage.
+#
+# The registry host is derived at runtime from the forge's own URL
+# (GITHUB_SERVER_URL) — so the internal hostname is never committed to this
+# public repo. Must run on the in-cluster runner (the registry is internal, so
+# GitHub-hosted runners can't push). Pull mirrors do NOT auto-trigger Actions,
+# so use workflow_dispatch (or push directly to the internal remote).
+#
+# Required secret: PACKAGE_TOKEN (push credential).
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "apps/kserve-huggingfaceserver/**"
+      - ".forgejo/workflows/publish.yaml"
+
+jobs:
+  calver:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.calver.outputs.tag }}
+    steps:
+      - name: Get CalVer tag
+        id: calver
+        run: echo "tag=$(date +'%Y.%m.%d')-${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
+
+  build:
+    needs: calver
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # The forge serves its container registry at its own host. Derive it from
+      # the forge URL (scheme stripped) so the hostname stays out of the repo.
+      - name: Resolve registry host
+        id: reg
+        run: echo "host=${GITHUB_SERVER_URL#*://}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.reg.outputs.host }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.PACKAGE_TOKEN }}
+
+      # Tags: <forge-host>/arsac/kserve-huggingfaceserver:{<calver>, 0.22.1}
+      # (see the `forgejo` target in apps/kserve-huggingfaceserver/docker-bake.hcl).
+      # Pin the CSR by digest after GPU validation.
+      - uses: docker/bake-action@v6
+        with:
+          workdir: apps/kserve-huggingfaceserver
+          targets: forgejo
+          push: true
+        env:
+          TAG: ${{ needs.calver.outputs.tag }}
+          REGISTRY: ${{ steps.reg.outputs.host }}/arsac
+          SOURCE: ${{ github.server_url }}/${{ github.repository }}
