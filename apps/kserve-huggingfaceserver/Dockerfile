@@ -6,7 +6,7 @@
 ARG CUDA_VERSION=13.2.1
 ARG VENV_PATH=prod_venv
 ARG WORKSPACE_DIR=/kserve-workspace
-ARG KSERVE_REF=11ad2ca18a2265b079bd140220572017ad06bdfc
+ARG KSERVE_REF=b0eda63d2c105479140af8ec9149d992b7e44be5
 
 #################### SOURCE (pinned upstream kserve + downstream patches) ####################
 # Vendored from kserve's huggingface_server.Dockerfile at KSERVE_REF, with the

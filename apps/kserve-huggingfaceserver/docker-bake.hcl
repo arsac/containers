@@ -11,12 +11,13 @@ variable "VERSION" {
   default = "0.22.1"
 }
 
-# Pinned upstream kserve commit. The Dockerfile's `src` stage fetches this ref
-# and applies patches/. Bumping it = re-test the patch applies (git apply fails
-# loudly on drift) + re-validate on GPU.
+# Pinned upstream kserve commit (currently the v0.19.0 stable tag). The
+# Dockerfile's `src` stage fetches this ref and applies patches/. Bumping it =
+# re-test the patch applies (git apply fails loudly on drift) + re-validate on
+# GPU.
 variable "KSERVE_REF" {
   // renovate: datasource=git-refs depName=kserve packageName=https://github.com/kserve/kserve
-  default = "11ad2ca18a2265b079bd140220572017ad06bdfc"
+  default = "b0eda63d2c105479140af8ec9149d992b7e44be5"
 }
 
 variable "SOURCE" {
