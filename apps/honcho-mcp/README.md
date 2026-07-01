@@ -23,7 +23,6 @@ bump `HONCHO_REF` in `docker-bake.hcl` (renovate proposes tag bumps via
 | `HONCHO_API_KEY` | `""` | Throwaway while Honcho runs `AUTH_USE_AUTH=false`. When auth is enabled, inject a workspace-scoped JWT (minted out-of-band). |
 | `HONCHO_USER_NAME` | `User` | Optional. |
 | `HONCHO_ASSISTANT_NAME` | `Assistant` | Optional. |
-| `HONCHO_SKIP_PREFLIGHT` | unset | Set `1` to skip the startup reachability check (lazy connect). |
 | `PORT` | `8080` | HTTP listen port. |
 
 - **Transport: Streamable HTTP, stateless.** MCP endpoint `POST /mcp`; a fresh
@@ -32,11 +31,13 @@ bump `HONCHO_REF` in `docker-bake.hcl` (renovate proposes tag bumps via
   routing — free to scale to multiple replicas). `GET /healthz` for k8s probes.
 - **Auto-provisioning.** Peers, sessions, and the workspace are get-or-create on
   first use. No seed/migration/bootstrap.
-- **Fail-closed + preflight.** Missing required env → exit 1. At startup the
-  server runs `honcho.getMetadata()` (5× 2s bounded retry); if Honcho is
-  unreachable it exits 1 → visible as CrashLoopBackOff at deploy time instead of
-  a silent failure on first tool call. This couples pod startup to Honcho
-  liveness; set `HONCHO_SKIP_PREFLIGHT=1` to opt out.
+- **Fail-fast on config, resilient to Honcho.** Missing `HONCHO_API_URL` /
+  `HONCHO_WORKSPACE_ID` → exit 1 at startup. Startup is **not** gated on Honcho
+  reachability (canonical cloud-native: no dependency-ordering, no crash loop on
+  a transient backing-service outage) — a Honcho outage surfaces as tool-call
+  errors and self-recovers. `GET /healthz` is a **local** liveness check (200
+  when serving); it does not probe Honcho, so a Honcho blip never drops all
+  replicas from the Service.
 - **Runs non-root** (`65534:65534`) and writes nothing (read-only-rootfs safe).
 
 ## Deployment / image pinning

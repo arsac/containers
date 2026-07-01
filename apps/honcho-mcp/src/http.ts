@@ -35,31 +35,11 @@ const config: HonchoConfig = {
 const port = Number(process.env.PORT ?? "8080");
 
 // One shared Honcho client — a stateless fetch-based HTTP client, safe to use
-// across concurrent requests.
+// across concurrent requests. Startup is NOT gated on Honcho reachability
+// (canonical cloud-native: no dependency-ordering, no crash loop on a transient
+// backing-service outage); a Honcho outage surfaces as tool-call errors and
+// self-recovers. Config errors still fail fast above.
 const honcho = createClient(config);
-
-// Startup preflight so a wrong URL/key/port fails LOUD at boot (CrashLoopBackOff)
-// instead of silently on the first tool call. Opt out with HONCHO_SKIP_PREFLIGHT=1.
-if (process.env.HONCHO_SKIP_PREFLIGHT !== "1") {
-  const attempts = 5;
-  let lastErr: unknown;
-  for (let i = 1; i <= attempts; i++) {
-    try {
-      await honcho.getMetadata();
-      lastErr = undefined;
-      break;
-    } catch (e) {
-      lastErr = e;
-      if (i < attempts) await new Promise((r) => setTimeout(r, 2000));
-    }
-  }
-  if (lastErr !== undefined) {
-    process.stderr.write(
-      `FATAL: cannot reach Honcho at ${baseUrl} after ${attempts} attempts: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}\n`,
-    );
-    process.exit(1);
-  }
-}
 
 const httpServer = createHttpServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/healthz") {
