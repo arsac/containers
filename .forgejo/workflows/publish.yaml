@@ -60,10 +60,10 @@ jobs:
           apps="[]"
           if [ -n "${changed}" ]; then
             matched=""
-            while IFS= read -r a; do
-              [ -n "${a}" ] || continue
-              if [ -f "apps/${a}/docker-bake.hcl" ]; then
-                matched="${matched}${a}"$'\n'
+            while IFS= read -r app; do
+              [ -n "${app}" ] || continue
+              if [ -f "apps/${app}/docker-bake.hcl" ]; then
+                matched="${matched}${app}"$'\n'
               fi
             done <<< "${changed}"
             if [ -n "${matched}" ]; then
