@@ -1,15 +1,15 @@
 # honcho-mcp
 
-A stdio [Model Context Protocol](https://modelcontextprotocol.io/) server that
-wraps a **self-hosted** [Honcho](https://honcho.dev) v3 instance. Fronted by
-ToolHive (stdin/stdout → streamable-HTTP) for clients such as kagent.
+A **stateless Streamable HTTP** [Model Context Protocol](https://modelcontextprotocol.io/)
+server that wraps a **self-hosted** [Honcho](https://honcho.dev) v3 instance,
+fronted by ToolHive (`transport: streamable-http`) for clients such as kagent.
 
 ## Provenance
 
 Vendored from [`plastic-labs/honcho`](https://github.com/plastic-labs/honcho)
 subdirectory `mcp/`, pinned to tag **`v3.0.11`** (license: AGPL-3.0). Only
 `mcp/` is used; the upstream Cloudflare-Worker entry (`src/index.ts`) is removed
-and replaced by `src/stdio.ts` (this repo). The Dockerfile fetches the upstream
+and replaced by `src/http.ts` (this repo). The Dockerfile fetches the upstream
 tarball at the pinned tag and overlays our entry — see `Dockerfile`. To re-sync:
 bump `HONCHO_REF` in `docker-bake.hcl` (renovate proposes tag bumps via
 `datasource=github-tags`).
@@ -24,9 +24,14 @@ bump `HONCHO_REF` in `docker-bake.hcl` (renovate proposes tag bumps via
 | `HONCHO_USER_NAME` | `User` | Optional. |
 | `HONCHO_ASSISTANT_NAME` | `Assistant` | Optional. |
 | `HONCHO_SKIP_PREFLIGHT` | unset | Set `1` to skip the startup reachability check (lazy connect). |
+| `PORT` | `8080` | HTTP listen port. |
 
-- **Stateless.** Peers, sessions, and the workspace auto-provision on first use.
-  No seed/migration/bootstrap.
+- **Transport: Streamable HTTP, stateless.** MCP endpoint `POST /mcp`; a fresh
+  MCP server is built per request, so concurrent clients from many agents are
+  isolated with no per-connection session state (no `Mcp-Session-Id`, no sticky
+  routing — free to scale to multiple replicas). `GET /healthz` for k8s probes.
+- **Auto-provisioning.** Peers, sessions, and the workspace are get-or-create on
+  first use. No seed/migration/bootstrap.
 - **Fail-closed + preflight.** Missing required env → exit 1. At startup the
   server runs `honcho.getMetadata()` (5× 2s bounded retry); if Honcho is
   unreachable it exits 1 → visible as CrashLoopBackOff at deploy time instead of
@@ -61,7 +66,7 @@ is wired is a known limitation, not a model-quality bug.
 AGPL-3.0 (`LICENSE`). This is a **modified** work served over a network: the
 Corresponding Source is this repository (`github.com/arsac/containers`,
 `apps/honcho-mcp/`), and the exact built dependency set is pinned in `bun.lock`.
-Per-file modification notice is in `src/stdio.ts`.
+Per-file modification notice is in `src/http.ts`.
 
 ## Local development
 

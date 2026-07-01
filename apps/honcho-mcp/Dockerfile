@@ -21,18 +21,20 @@ RUN tar -xz --strip-components=2 -f /tmp/honcho.tgz "honcho-${HONCHO_REF#v}/mcp"
 
 # Overlay our authored files over upstream (entry + our manifest/lock/tsconfig).
 COPY package.json bun.lock tsconfig.json ./
-COPY src/stdio.ts ./src/stdio.ts
+COPY src/http.ts ./src/http.ts
 
 # Reproducible install → type-check gate (fails on upstream signature drift) →
 # bundle to a single ESM file (.mjs so Node runs it as ESM: top-level await).
 RUN bun install --frozen-lockfile \
  && bunx tsc --noEmit \
- && bun build src/stdio.ts --target node --outfile dist/stdio.mjs
+ && bun build src/http.ts --target node --outfile dist/http.mjs
 
 # Run stage is per-$TARGETPLATFORM; it only copies the arch-independent bundle.
 FROM node:22-slim
 WORKDIR /app
-COPY --from=build /app/dist/stdio.mjs ./dist/stdio.mjs
+COPY --from=build /app/dist/http.mjs ./dist/http.mjs
+# Streamable HTTP listener (stateless); override with PORT (default 8080).
+EXPOSE 8080
 # Non-root nobody (repo convention); server writes nothing → read-only-fs safe.
 USER 65534:65534
-ENTRYPOINT ["node", "/app/dist/stdio.mjs"]
+ENTRYPOINT ["node", "/app/dist/http.mjs"]
