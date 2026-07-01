@@ -59,9 +59,16 @@ jobs:
             | awk -F/ '$1=="apps" && NF>=2 {print $2}' | sort -u)"
           apps="[]"
           if [ -n "${changed}" ]; then
-            apps="$(while read -r a; do
-              [ -n "${a}" ] && [ -f "apps/${a}/docker-bake.hcl" ] && printf '%s\n' "${a}"
-            done <<< "${changed}" | jq -R . | jq -cs .)"
+            matched=""
+            while IFS= read -r a; do
+              [ -n "${a}" ] || continue
+              if [ -f "apps/${a}/docker-bake.hcl" ]; then
+                matched="${matched}${a}"$'\n'
+              fi
+            done <<< "${changed}"
+            if [ -n "${matched}" ]; then
+              apps="$(printf '%s' "${matched}" | jq -R . | jq -cs .)"
+            fi
           fi
           echo "apps=${apps}" >> "$GITHUB_OUTPUT"
           echo "Building: ${apps}"
