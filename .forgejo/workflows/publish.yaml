@@ -48,39 +48,22 @@ jobs:
           include_only_directories: true
           max_depth: 1
 
-      # Working tree is needed only to filter to publishable apps (docker-bake.hcl).
-      - name: Checkout
-        if: ${{ github.event.inputs.app == '' }}
-        uses: actions/checkout@v4
-
+      # Manual dispatch can name one app; otherwise use the detected changed apps.
+      # The action already returns only changed apps/<name> dirs, so the matrix
+      # consumes it directly (a dir lacking a docker-bake.hcl would fail loudly in
+      # build, same as the GitHub-side pull-request.yaml).
       - name: Select apps to build
         id: select
         env:
           APP_INPUT: ${{ github.event.inputs.app }}
           CHANGED: ${{ steps.changed.outputs.changed_files }}
         run: |
-          set -euo pipefail
-          # Manual override: build exactly the named app.
+          set -eu
           if [ -n "${APP_INPUT}" ]; then
             echo "apps=[\"${APP_INPUT}\"]" >> "$GITHUB_OUTPUT"
-            exit 0
+          else
+            echo "apps=${CHANGED:-[]}" >> "$GITHUB_OUTPUT"
           fi
-          # Keep only changed apps that are publishable (have a docker-bake.hcl).
-          # Accumulate without piping the loop so a failing -f test can't trip
-          # pipefail+set -e before the echo below.
-          apps="[]"
-          matched=""
-          while IFS= read -r app; do
-            [ -n "${app}" ] || continue
-            if [ -f "apps/${app}/docker-bake.hcl" ]; then
-              matched="${matched}${app}"$'\n'
-            fi
-          done < <(printf '%s' "${CHANGED:-[]}" | jq -r '.[]?')
-          if [ -n "${matched}" ]; then
-            apps="$(printf '%s' "${matched}" | jq -R . | jq -cs .)"
-          fi
-          echo "apps=${apps}" >> "$GITHUB_OUTPUT"
-          echo "Building: ${apps}"
 
   build:
     needs: detect
