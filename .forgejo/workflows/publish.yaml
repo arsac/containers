@@ -30,18 +30,34 @@ jobs:
   detect:
     runs-on: ubuntu-latest
     outputs:
-      apps: ${{ steps.changed.outputs.apps }}
+      apps: ${{ steps.select.outputs.apps }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Determine apps to build
+      # Detect changed apps the same way the GitHub-side pull-request.yaml does.
+      # Third-party node20 action; it uses the forge API via github.token (no
+      # checkout needed for detection). It MUST be fetchable/runnable by the
+      # in-cluster Forgejo runner — if it isn't, restore the prior git-diff step
+      # from this file's history. Skipped on a manual single-app dispatch.
+      # (A manual dispatch with a blank app has no push diff to inspect, so name
+      # the app when dispatching by hand.)
+      - name: Get changed apps
         id: changed
+        if: ${{ github.event.inputs.app == '' }}
+        uses: bjw-s-labs/action-changed-files@930cef8463348e168cab7235c47fe95a7a235f65 # v0.3.3
+        with:
+          path: apps
+          include_only_directories: true
+          max_depth: 1
+
+      # Working tree is needed only to filter to publishable apps (docker-bake.hcl).
+      - name: Checkout
+        if: ${{ github.event.inputs.app == '' }}
+        uses: actions/checkout@v4
+
+      - name: Select apps to build
+        id: select
         env:
           APP_INPUT: ${{ github.event.inputs.app }}
-          BEFORE: ${{ github.event.before }}
-          SHA: ${{ github.sha }}
+          CHANGED: ${{ steps.changed.outputs.changed_files }}
         run: |
           set -euo pipefail
           # Manual override: build exactly the named app.
@@ -49,26 +65,19 @@ jobs:
             echo "apps=[\"${APP_INPUT}\"]" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Otherwise diff this push and keep changed top-level apps/<name>/ dirs
-          # that are publishable (have a docker-bake.hcl).
-          base="${BEFORE}"
-          if [ -z "${base}" ] || ! git rev-parse --verify "${base}^{commit}" >/dev/null 2>&1; then
-            base="$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)"
-          fi
-          changed="$(git diff --name-only "${base}" "${SHA}" \
-            | awk -F/ '$1=="apps" && NF>=2 {print $2}' | sort -u)"
+          # Keep only changed apps that are publishable (have a docker-bake.hcl).
+          # Accumulate without piping the loop so a failing -f test can't trip
+          # pipefail+set -e before the echo below.
           apps="[]"
-          if [ -n "${changed}" ]; then
-            matched=""
-            while IFS= read -r app; do
-              [ -n "${app}" ] || continue
-              if [ -f "apps/${app}/docker-bake.hcl" ]; then
-                matched="${matched}${app}"$'\n'
-              fi
-            done <<< "${changed}"
-            if [ -n "${matched}" ]; then
-              apps="$(printf '%s' "${matched}" | jq -R . | jq -cs .)"
+          matched=""
+          while IFS= read -r app; do
+            [ -n "${app}" ] || continue
+            if [ -f "apps/${app}/docker-bake.hcl" ]; then
+              matched="${matched}${app}"$'\n'
             fi
+          done < <(printf '%s' "${CHANGED:-[]}" | jq -r '.[]?')
+          if [ -n "${matched}" ]; then
+            apps="$(printf '%s' "${matched}" | jq -R . | jq -cs .)"
           fi
           echo "apps=${apps}" >> "$GITHUB_OUTPUT"
           echo "Building: ${apps}"
