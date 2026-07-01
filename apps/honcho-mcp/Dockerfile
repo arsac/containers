@@ -30,7 +30,7 @@ RUN bun install --frozen-lockfile \
  && bun build src/http.ts --target node --outfile dist/http.mjs
 
 # Run stage is per-$TARGETPLATFORM; it only copies the arch-independent bundle.
-FROM node:22-slim
+FROM node:24-slim
 WORKDIR /app
 COPY --from=build /app/dist/http.mjs ./dist/http.mjs
 # Streamable HTTP listener (stateless); override with PORT (default 8080).
