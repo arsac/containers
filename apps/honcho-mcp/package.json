@@ -1,0 +1,21 @@
+{
+  "name": "honcho-mcp",
+  "version": "3.0.11",
+  "private": true,
+  "type": "module",
+  "description": "Stdio MCP server wrapping a self-hosted Honcho v3 instance. Vendors plastic-labs/honcho mcp/ (AGPL-3.0), swapping the Cloudflare Worker entry for local stdio.",
+  "bin": { "honcho-mcp": "dist/stdio.mjs" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "bun build src/stdio.ts --target node --outfile dist/stdio.mjs"
+  },
+  "dependencies": {
+    "@honcho-ai/sdk": "^2.1.0",
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5.6.0"
+  }
+}
