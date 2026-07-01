@@ -4,18 +4,18 @@
 # output is an arch-independent JS bundle, so nothing here runs under QEMU.
 FROM --platform=$BUILDPLATFORM oven/bun:1.2-slim AS build
 
-# Pinned upstream Honcho release + release-tarball checksum. Bump together
-# (docker-bake.hcl carries the renovate annotation for HONCHO_REF).
+# Pinned upstream Honcho release tag (renovate-annotated in docker-bake.hcl).
 ARG HONCHO_REF="v3.0.11"
-ARG HONCHO_SHA256="be832a84f8bbdddcfb38f5dd1777414512d9be6a576e860a96a2371a00929eab"
 
 WORKDIR /app
 
-# Fetch the upstream monorepo tarball at the pinned tag; --checksum fails the
-# build on any drift/MITM. Remote tars are not auto-extracted, so extract mcp/
-# ourselves (tarball root is honcho-<version>/, target honcho-<version>/mcp).
-ADD --checksum=sha256:${HONCHO_SHA256} \
-    https://github.com/plastic-labs/honcho/archive/refs/tags/${HONCHO_REF}.tar.gz /tmp/honcho.tgz
+# Fetch the upstream monorepo tarball at the pinned tag. No sha256 pin: GitHub's
+# on-the-fly archive tarballs are NOT byte-stable — the same tag/commit yields
+# different bytes over time, so a pinned checksum breaks the build on
+# regeneration. Integrity here is HTTPS + the pinned release tag (the same
+# approach every other app in this repo uses). Remote tars are not auto-extracted,
+# so extract mcp/ ourselves (tarball root honcho-<version>/, target .../mcp).
+ADD https://github.com/plastic-labs/honcho/archive/refs/tags/${HONCHO_REF}.tar.gz /tmp/honcho.tgz
 RUN tar -xz --strip-components=2 -f /tmp/honcho.tgz "honcho-${HONCHO_REF#v}/mcp" \
  && rm /tmp/honcho.tgz src/index.ts
 

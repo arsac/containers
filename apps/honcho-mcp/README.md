@@ -10,9 +10,9 @@ Vendored from [`plastic-labs/honcho`](https://github.com/plastic-labs/honcho)
 subdirectory `mcp/`, pinned to tag **`v3.0.11`** (license: AGPL-3.0). Only
 `mcp/` is used; the upstream Cloudflare-Worker entry (`src/index.ts`) is removed
 and replaced by `src/stdio.ts` (this repo). The Dockerfile fetches the upstream
-tarball at build time (checksum-verified) and overlays our entry — see
-`Dockerfile`. To re-sync: bump `HONCHO_REF` + `HONCHO_SHA256` in
-`docker-bake.hcl` (renovate proposes tag bumps via `datasource=github-tags`).
+tarball at the pinned tag and overlays our entry — see `Dockerfile`. To re-sync:
+bump `HONCHO_REF` in `docker-bake.hcl` (renovate proposes tag bumps via
+`datasource=github-tags`).
 
 ## Runtime contract
 

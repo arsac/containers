@@ -15,13 +15,6 @@ variable "HONCHO_REF" {
   default = "v3.0.11"
 }
 
-# sha256 of the upstream release tarball (verified in the Dockerfile ADD).
-# Refresh MANUALLY alongside a HONCHO_REF bump — the docker-bake renovate
-# manager captures a single value per annotation and will not co-bump this.
-variable "HONCHO_SHA256" {
-  default = "be832a84f8bbdddcfb38f5dd1777414512d9be6a576e860a96a2371a00929eab"
-}
-
 variable "SOURCE" {
   default = "https://github.com/plastic-labs/honcho"
 }
@@ -43,8 +36,7 @@ group "default" {
 target "image" {
   inherits = ["docker-metadata-action"]
   args = {
-    HONCHO_REF    = "${HONCHO_REF}"
-    HONCHO_SHA256 = "${HONCHO_SHA256}"
+    HONCHO_REF = "${HONCHO_REF}"
   }
   labels = {
     "org.opencontainers.image.source"   = "${SOURCE}"
