@@ -56,9 +56,9 @@ target "image-all" {
 }
 
 # Built + pushed by the in-cluster Forgejo runner to the internal registry.
+# Inherits image-all's platforms (amd64,arm64); only adds the registry tags.
 target "forgejo" {
-  inherits  = ["image"]
-  platforms = ["linux/amd64", "linux/arm64"]
+  inherits = ["image-all"]
   tags = [
     "${REGISTRY}/${APP}:${TAG}",
     "${REGISTRY}/${APP}:${VERSION}",

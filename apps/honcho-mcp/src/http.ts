@@ -7,23 +7,24 @@
  * this Node Streamable HTTP transport for self-hosted use behind ToolHive.
  * Corresponding Source: this repo.
  */
-import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer as createHttpServer } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createClient, type HonchoConfig } from "./config.js";
 import { createServer } from "./server.js";
 
-const baseUrl = process.env.HONCHO_API_URL?.trim();
-if (!baseUrl) {
-  process.stderr.write(
-    "FATAL: HONCHO_API_URL is required (e.g. http://honcho.<ns>.svc.cluster.local:8000). Refusing to start.\n",
-  );
-  process.exit(1);
+// Fail closed: refuse to start on a missing required var rather than silently
+// mis-target or co-mingle memory.
+function required(name: string, hint = ""): string {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    process.stderr.write(`FATAL: ${name} is required${hint ? ` (${hint})` : ""}. Refusing to start.\n`);
+    process.exit(1);
+  }
+  return value;
 }
-const workspaceId = process.env.HONCHO_WORKSPACE_ID?.trim();
-if (!workspaceId) {
-  process.stderr.write("FATAL: HONCHO_WORKSPACE_ID is required. Refusing to start.\n");
-  process.exit(1);
-}
+
+const baseUrl = required("HONCHO_API_URL", "e.g. http://honcho.<ns>.svc.cluster.local:8000");
+const workspaceId = required("HONCHO_WORKSPACE_ID");
 const config: HonchoConfig = {
   apiKey: process.env.HONCHO_API_KEY ?? "",
   baseUrl,
@@ -60,7 +61,7 @@ if (process.env.HONCHO_SKIP_PREFLIGHT !== "1") {
   }
 }
 
-const httpServer = createHttpServer(async (req: IncomingMessage, res: ServerResponse) => {
+const httpServer = createHttpServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/healthz") {
     res.writeHead(200, { "Content-Type": "text/plain" }).end("ok");
     return;
