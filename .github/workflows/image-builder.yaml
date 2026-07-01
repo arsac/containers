@@ -193,10 +193,31 @@ jobs:
           workdir: ./${{ inputs.path }}/${{ inputs.image }}
 
       - name: Export Digest
+        id: digest
         run: |
           mkdir -p ${{ runner.temp }}/digests
           DIGEST="${{ inputs.variant == 'devel' && fromJSON(steps.bake.outputs.metadata)['image-devel']['containerimage.digest'] || fromJSON(steps.bake.outputs.metadata).image['containerimage.digest'] }}"
           touch "${{ runner.temp }}/digests/${DIGEST#sha256:}"
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      # Cross-image container test: runs per-arch on the native runner whenever
+      # the app ships apps/<image>/tests.yaml (container-structure-test or goss).
+      # Skipped for apps without one, so it's opt-in and backward-compatible.
+      # Gates PRs (incl. renovate auto-merge), catching structural/entry/
+      # fail-closed drift a build-only `tsc` gate can't.
+      - name: Pull Image For Test
+        if: ${{ hashFiles(format('{0}/{1}/tests.yaml', inputs.path, inputs.image)) != '' }}
+        env:
+          IMAGE_REF: ghcr.io/${{ github.repository_owner }}/${{ inputs.image }}@${{ steps.digest.outputs.digest }}
+        run: docker pull "$IMAGE_REF"
+
+      - name: Test Application
+        if: ${{ hashFiles(format('{0}/{1}/tests.yaml', inputs.path, inputs.image)) != '' }}
+        uses: ./.github/actions/app-tests
+        with:
+          app: ${{ inputs.image }}
+          image: ghcr.io/${{ github.repository_owner }}/${{ inputs.image }}@${{ steps.digest.outputs.digest }}
+          token: ${{ github.token }}
 
       - name: Upload Digest
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

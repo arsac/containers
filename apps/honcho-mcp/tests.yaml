@@ -1,0 +1,25 @@
+# container-structure-test spec (run by .github/actions/app-tests against the
+# built image, per arch). Covers the structural/entry/fail-closed drift a
+# `tsc --noEmit`-only build can't catch when renovate auto-merges an upstream
+# HONCHO_REF bump.
+schemaVersion: "2.0.0"
+
+metadataTest:
+  entrypoint: ["node", "/app/dist/http.mjs"]
+  workdir: "/app"
+  user: "65534:65534"
+  exposedPorts: ["8080"]
+
+fileExistenceTests:
+  - name: bundled entry present
+    path: /app/dist/http.mjs
+    shouldExist: true
+
+commandTests:
+  # Fail-closed: with no HONCHO_API_URL the server must refuse to start.
+  - name: fail-closed without required config
+    command: node
+    args: ["/app/dist/http.mjs"]
+    exitCode: 1
+    expectedError:
+      - "FATAL: HONCHO_API_URL is required"

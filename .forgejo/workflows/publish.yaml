@@ -1,48 +1,91 @@
 name: Publish (Forgejo)
 
-# Publishes kserve-huggingfaceserver to an INTERNAL LAN registry so the cluster
-# pulls it quickly. ghcr serves this image's large CUDA/flashinfer layers too
-# slowly over WAN (~90 min/pull), which caused an LLM outage.
+# Builds every CHANGED app under apps/ and pushes to the INTERNAL LAN registry so
+# the cluster pulls quickly. Per-app platforms/refs/versions live in each app's
+# docker-bake.hcl (kserve = amd64-only; honcho-mcp = amd64,arm64), so this
+# workflow is app-agnostic — a new app needs only apps/<name>/{Dockerfile,
+# docker-bake.hcl}, no change here.
 #
-# The registry host is derived at runtime from the forge's own URL
-# (GITHUB_SERVER_URL) — so the internal hostname is never committed to this
-# public repo. Must run on the in-cluster runner (the registry is internal, so
-# GitHub-hosted runners can't push). Pull mirrors do NOT auto-trigger Actions,
-# so use workflow_dispatch (or push directly to the internal remote).
+# The registry host is derived at runtime from the forge URL (GITHUB_SERVER_URL)
+# so the internal hostname never lands in this public repo. Must run on the
+# in-cluster runner (the registry is internal). Pull mirrors do NOT auto-trigger
+# Actions — use workflow_dispatch (optionally naming a single app) or push to the
+# internal remote.
 #
 # Required secret: PACKAGE_TOKEN (push credential).
 
 on:
   workflow_dispatch:
+    inputs:
+      app:
+        description: "App to publish (blank = auto-detect changed apps)"
+        required: false
   push:
     branches: [main]
     paths:
-      - "apps/kserve-huggingfaceserver/**"
+      - "apps/**"
       - ".forgejo/workflows/publish.yaml"
 
 jobs:
-  calver:
+  detect:
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.calver.outputs.tag }}
+      apps: ${{ steps.select.outputs.apps }}
     steps:
-      - name: Get CalVer tag
-        id: calver
-        run: echo "tag=$(date +'%Y.%m.%d')-${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
+      # Detect changed apps the same way the GitHub-side pull-request.yaml does.
+      # Third-party node20 action; it uses the forge API via github.token (no
+      # checkout needed for detection). It MUST be fetchable/runnable by the
+      # in-cluster Forgejo runner — if it isn't, restore the prior git-diff step
+      # from this file's history. Skipped on a manual single-app dispatch.
+      # (A manual dispatch with a blank app has no push diff to inspect, so name
+      # the app when dispatching by hand.)
+      - name: Get changed apps
+        id: changed
+        if: ${{ github.event.inputs.app == '' }}
+        uses: bjw-s-labs/action-changed-files@930cef8463348e168cab7235c47fe95a7a235f65 # v0.3.3
+        with:
+          path: apps
+          include_only_directories: true
+          max_depth: 1
+
+      # Manual dispatch can name one app; otherwise use the detected changed apps.
+      # The action already returns only changed apps/<name> dirs, so the matrix
+      # consumes it directly (a dir lacking a docker-bake.hcl would fail loudly in
+      # build, same as the GitHub-side pull-request.yaml).
+      - name: Select apps to build
+        id: select
+        env:
+          APP_INPUT: ${{ github.event.inputs.app }}
+          CHANGED: ${{ steps.changed.outputs.changed_files }}
+        run: |
+          set -eu
+          if [ -n "${APP_INPUT}" ]; then
+            echo "apps=[\"${APP_INPUT}\"]" >> "$GITHUB_OUTPUT"
+          else
+            echo "apps=${CHANGED:-[]}" >> "$GITHUB_OUTPUT"
+          fi
 
   build:
-    needs: calver
+    needs: detect
+    if: needs.detect.outputs.apps != '[]' && needs.detect.outputs.apps != ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJSON(needs.detect.outputs.apps) }}
     steps:
       - uses: actions/checkout@v4
 
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
-      # The forge serves its container registry at its own host. Derive it from
-      # the forge URL (scheme stripped) so the hostname stays out of the repo.
+      - name: Get CalVer tag
+        id: calver
+        run: echo "tag=$(date +'%Y.%m.%d')-${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+
       - name: Resolve registry host
         id: reg
         run: echo "host=${GITHUB_SERVER_URL#*://}" >> "$GITHUB_OUTPUT"
@@ -53,15 +96,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.PACKAGE_TOKEN }}
 
-      # Tags: <forge-host>/arsac/kserve-huggingfaceserver:{<calver>, 0.22.1}
-      # (see the `forgejo` target in apps/kserve-huggingfaceserver/docker-bake.hcl).
-      # Pin the CSR by digest after GPU validation.
       - uses: docker/bake-action@v6
+        id: bake
         with:
-          workdir: apps/kserve-huggingfaceserver
+          workdir: apps/${{ matrix.app }}
           targets: forgejo
           push: true
         env:
-          TAG: ${{ needs.calver.outputs.tag }}
+          TAG: ${{ steps.calver.outputs.tag }}
           REGISTRY: ${{ steps.reg.outputs.host }}/arsac
           SOURCE: ${{ github.server_url }}/${{ github.repository }}
+
+      - name: Emit image digest
+        run: |
+          echo "### ${{ matrix.app }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo '${{ steps.bake.outputs.metadata }}' \
+            | jq -r '.forgejo["containerimage.digest"] // "digest not found"' \
+            >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

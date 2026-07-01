@@ -1,0 +1,13 @@
+# Overrides the repo default (include/.dockerignore), which ignores everything
+# except defaults/patches/scripts — that default is written for apps that fetch
+# all their source from upstream. honcho-mcp COPYs its own authored files into
+# the image, so allow exactly those. The CI rsyncs include/ with
+# --ignore-existing, so this file is kept instead of being overwritten.
+*
+
+!Dockerfile
+!docker-bake.hcl
+!package.json
+!bun.lock
+!tsconfig.json
+!src
