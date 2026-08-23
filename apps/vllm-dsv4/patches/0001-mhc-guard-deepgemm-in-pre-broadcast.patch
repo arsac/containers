@@ -1,0 +1,69 @@
+Subject: [PATCH 1/2] mhc: guard the DeepGEMM call in pre-broadcast on sm_120
+
+mhc_pre_tilelang and mhc_fused_post_pre_tilelang both gate
+tf32_hc_prenorm_gemm behind is_deep_gemm_supported() and fall back to
+_tilelang_hc_prenorm_gemm. mhc_pre_broadcast_tilelang calls it
+unconditionally, so VLLM_USE_DEEP_GEMM=0 is honoured everywhere except
+here and the process still dies with
+
+  Assertion error (deepgemm-src/csrc/apis/hyperconnection.hpp:56):
+  Unsupported architecture
+
+on RTX PRO 6000 Blackwell (sm_120), where DeepGEMM has no hyperconnection
+kernel. This mirrors the guard its two siblings already carry.
+
+The broadcast residual is (T, hidden_size) rather than
+(T, hc_mult*hidden_size), so the fallback is called with hc_mult=1, which
+satisfies its `x.shape[1] == hc_mult * hidden_size` assertion.
+
+--- a/vllm/model_executor/kernels/mhc/tilelang.py	2026-08-22 21:41:09
++++ b/vllm/model_executor/kernels/mhc/tilelang.py	2026-08-22 21:41:09
+@@ -348,7 +348,12 @@
+     residual_flat = residual
+     num_tokens = residual.shape[0]
+ 
+-    n_splits = compute_num_split(64, hidden_size, cdiv(num_tokens, 64))
++    from vllm.utils.deep_gemm import is_deep_gemm_supported
++
++    use_deep_gemm = is_deep_gemm_supported()
++    n_splits = (
++        compute_num_split(64, hidden_size, cdiv(num_tokens, 64)) if use_deep_gemm else 1
++    )
+ 
+     residual_out = torch.empty(
+         num_tokens, hc_mult, hidden_size, dtype=torch.bfloat16, device=residual.device
+@@ -369,15 +374,26 @@
+         n_splits, num_tokens, dtype=torch.float32, device=residual.device
+     )
+ 
+-    from vllm.utils.deep_gemm import tf32_hc_prenorm_gemm
++    if use_deep_gemm:
++        from vllm.utils.deep_gemm import tf32_hc_prenorm_gemm
+ 
+-    tf32_hc_prenorm_gemm(
+-        residual_flat,
+-        fn_broadcast,
+-        gemm_out_mul,
+-        gemm_out_sqrsum,
+-        n_splits,
+-    )
++        tf32_hc_prenorm_gemm(
++            residual_flat,
++            fn_broadcast,
++            gemm_out_mul,
++            gemm_out_sqrsum,
++            n_splits,
++        )
++    else:
++        _tilelang_hc_prenorm_gemm(
++            residual_flat,
++            fn_broadcast,
++            gemm_out_mul,
++            gemm_out_sqrsum,
++            hidden_size,
++            1,
++            n_splits=n_splits,
++        )
+     mhc_pre_big_fuse_broadcast_with_norm_tilelang(
+         gemm_out_mul,
+         gemm_out_sqrsum,
