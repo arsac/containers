@@ -1,7 +1,8 @@
-# vLLM with two DeepGEMM sm_120 guards, for DeepSeek-V4-Flash on RTX PRO 6000
-# Blackwell. See README.md for the failures these fix and the retirement trigger.
+# vLLM with three sm_120 guards, for DeepSeek-V4-Flash on RTX PRO 6000
+# Blackwell. See README.md for the failures these fix, the runtime flags they
+# must be paired with, and the retirement trigger.
 #
-# A thin overlay, not a source build: both patches touch pure-Python files in
+# A thin overlay, not a source build: every patch touches pure-Python files in
 # site-packages, so nothing needs recompiling and the layer delta is a few KB
 # on top of the stock image.
 ARG VLLM_VERSION=v0.27.1
@@ -25,7 +26,7 @@ RUN set -eux; \
         patch -p1 < "$p"; \
     done; \
     rm -rf /patches; \
-    python3 -c "import ast,sys; [ast.parse(open(f).read()) for f in ['vllm/model_executor/kernels/mhc/tilelang.py','vllm/model_executor/kernels/linear/scaled_mm/deep_gemm.py']]"
+    python3 -c "import ast,sys; [ast.parse(open(f).read()) for f in ['vllm/model_executor/kernels/mhc/tilelang.py','vllm/model_executor/kernels/linear/scaled_mm/deep_gemm.py','vllm/model_executor/kernels/linear/scaled_mm/triton.py']]"
 
 # Inherited from the base image; restated so it survives a base-image change.
 ENTRYPOINT ["vllm", "serve"]
