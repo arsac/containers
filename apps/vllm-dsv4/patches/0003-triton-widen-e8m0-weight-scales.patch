@@ -1,0 +1,26 @@
+Triton's JIT cannot bind float8_e8m0fnu, so DeepSeek-V4's ue8m0 weight
+scales have to be widened before they reach the kernel. See README.md.
+
+--- a/vllm/model_executor/kernels/linear/scaled_mm/triton.py	2026-08-24 12:01:34
++++ b/vllm/model_executor/kernels/linear/scaled_mm/triton.py	2026-08-24 12:01:34
+@@ -163,6 +163,20 @@
+             return False, "only CUDA-alike and XPU devices are supported."
+         return True, None
+ 
++    def process_weights_after_loading(self, layer: torch.nn.Module) -> None:
++        super().process_weights_after_loading(layer)
++        # DeepSeek-V4 stores weight_scale_inv as float8_e8m0fnu (the
++        # checkpoint's scale_fmt is "ue8m0"), and Triton's JIT cannot bind that
++        # dtype - it raises KeyError('float8_e8m0fnu') while canonicalizing
++        # pointer types. e8m0 is a bare power-of-two exponent, so widening to
++        # float32 is exact, and it lands on the float32-scale path DeepSeek-V3
++        # already takes.
++        params = self._get_layer_params(layer)
++        for name in (params.WEIGHT_SCALE_INV, params.WEIGHT_SCALE):
++            scale = getattr(layer, name, None)
++            if scale is not None and scale.dtype == torch.float8_e8m0fnu:
++                replace_parameter(layer, name, scale.data.to(torch.float32))
++
+     def apply_block_scaled_mm(
+         self,
+         A: torch.Tensor,
