@@ -50,8 +50,11 @@ RUN python3 -c "import vllm.v1.ple_offload.worker" \
 # Docker ENV cannot unset a variable and empty string fails vLLM's choice
 # validation, so scrub it at interpreter startup instead - sitecustomize runs
 # before vllm reads the env, and works under any command/entrypoint override.
+# A .pth file, not sitecustomize: python imports only the FIRST sitecustomize
+# on the path (the base image already has one), while .pth import-lines in
+# site-packages execute at every interpreter start unconditionally.
 RUN SITE=$(python3 -c "import vllm, os; print(os.path.dirname(os.path.dirname(vllm.__file__)))") \
- && printf 'import os\nos.environ.pop("VLLM_GPU_SYNC_CHECK", None)\n' >> "${SITE}/sitecustomize.py" \
+ && printf 'import os; os.environ.pop("VLLM_GPU_SYNC_CHECK", None)\n' > "${SITE}/zzz-scrub-ci-env.pth" \
  && VLLM_GPU_SYNC_CHECK=error python3 -c "import vllm.envs as e; assert e.VLLM_GPU_SYNC_CHECK is None, 'scrub failed'"
 
 # Match vllm/vllm-openai so the KServe ServingRuntime contract is identical
