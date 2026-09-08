@@ -7,6 +7,7 @@ vLLM for the `qwen4_exp` architecture (Qwen3.8-Flash-Next) on 2x RTX PRO 6000
 | --- | --- | --- |
 | base | `vllm-ci-postmerge-repo@f2e2936f` (main, 2026-09-06) | the exact commit PR #53899 is rebased on - patches apply by construction |
 | patch 0001 | [vllm#53899](https://github.com/vllm-project/vllm/pull/53899) head `357e0544`, `vllm/` hunks only | `VLLM_PLE_CPU_OFFLOAD` - without it the FP8 checkpoint cannot fit 2x 96GB with usable KV |
+| patch 0002 | ours (unsubmitted upstream) | short_conv_attn metadata builder: build the spec/decode/prefill group key on CPU - the device-side variant syncs per step (killed the engine under the CI image's `VLLM_GPU_SYNC_CHECK=error`; a latency wart under `warn`). Drop when upstream's sync-elimination campaign reaches short_conv |
 
 Not based on the `nightly` tag: main's qwen4_exp churn conflicts with the PR
 within days. Re-pin (see Dockerfile header) instead of hand-resolving
