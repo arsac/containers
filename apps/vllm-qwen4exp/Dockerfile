@@ -34,12 +34,16 @@ RUN set -eu; \
     rm -rf /tmp/patches
 
 # Fail the BUILD, not the cluster: the offload worker must import, the env
-# knob must exist, and the OpenAI server entrypoint must be intact (CI images
-# are not the openai-image build, so prove the serving surface works).
+# knob must exist, and the OpenAI server entrypoint + CLI + compiled CUDA
+# kernels must be intact (CI images are not the openai-image build, so prove
+# the serving surface is there). No `vllm --help`: building the arg parser
+# infers the device, which fails on GPU-less CI runners.
 RUN python3 -c "import vllm.v1.ple_offload.worker" \
     && python3 -c "import vllm.envs as e; assert hasattr(e, 'VLLM_PLE_CPU_OFFLOAD')" \
     && python3 -c "import vllm.entrypoints.openai.api_server" \
-    && vllm --help >/dev/null
+    && python3 -c "import vllm.entrypoints.cli.main" \
+    && python3 -c "import importlib.util as u; assert u.find_spec('vllm._C_stable_libtorch')" \
+    && command -v vllm >/dev/null
 
 # Match vllm/vllm-openai so the KServe ServingRuntime contract is identical
 # (it sets `command: [vllm, serve]` anyway; this keeps docker-run parity).
