@@ -4,10 +4,11 @@ variable "APP" {
   default = "vllm-qwen4exp"
 }
 
-# Date of the pinned upstream main commit (BASE_SHA in the Dockerfile). Bump
-# together with a re-pin so tags stay ordered.
+# Date of the pinned upstream main commit (BASE_SHA in the Dockerfile), plus a
+# revision that bumps when the patch set changes on the same base. Bump the
+# date with a re-pin so tags stay ordered.
 variable "VERSION" {
-  default = "20260906"
+  default = "20260906.1"
 }
 
 variable "SOURCE" {
