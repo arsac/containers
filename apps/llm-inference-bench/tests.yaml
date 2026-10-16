@@ -177,8 +177,9 @@ commandTests:
     exitCode: 0
 
   # A retried pod must resolve the same --output, or the bench never finds the
-  # <output>.resume.json checkpoint and silently reruns the whole matrix.
-  - name: entrypoint resumes into a stable result name
+  # <output>.resume.json checkpoint and silently reruns the whole matrix; a
+  # different experiment must not, or it overwrites that result and checkpoint.
+  - name: entrypoint resumes into a stable per-experiment result name
     command: bash
     args:
       - "-c"
@@ -190,9 +191,16 @@ commandTests:
         env BENCH_DRY_RUN=1 BENCH_RESUME=1 BENCH_MODEL=Qwen3.5/AWQ \
             BENCH_TEST_PROFILE=gsm8k BENCH_OUTPUT_DIR=/tmp/r \
             llm-inference-bench >/tmp/second &&
+        env BENCH_DRY_RUN=1 BENCH_RESUME=1 BENCH_MODEL=Qwen3.5/AWQ \
+            BENCH_TEST_PROFILE=gsm8k BENCH_OUTPUT_DIR=/tmp/r \
+            BENCH_CONCURRENCY=4,8 llm-inference-bench >/tmp/other &&
         diff -u /tmp/first /tmp/second &&
         tr ' ' '\n' </tmp/first | grep -qx -- --resume &&
-        tr ' ' '\n' </tmp/first | grep -qx /tmp/r/Qwen3.5_AWQ-gsm8k.json
+        tr ' ' '\n' </tmp/first | grep '^/tmp/r/' >/tmp/first.path &&
+        tr ' ' '\n' </tmp/other | grep '^/tmp/r/' >/tmp/other.path &&
+        grep -qxE '/tmp/r/Qwen3\.5_AWQ-gsm8k-[0-9a-f]{8}\.json' /tmp/first.path &&
+        grep -qxE '/tmp/r/Qwen3\.5_AWQ-gsm8k-[0-9a-f]{8}\.json' /tmp/other.path &&
+        ! cmp -s /tmp/first.path /tmp/other.path
     exitCode: 0
 
   # argv owns --output in either spelling, so the default /results target (not

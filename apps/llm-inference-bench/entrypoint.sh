@@ -16,8 +16,9 @@
 #   BENCH_TEST_PROFILE   --test-profile  e.g. gsm8k, mmlu-pro, gpqa-diamond
 #   BENCH_SCHEDULER      --scheduler     e.g. all, or arrivals,short-under-long
 #   BENCH_RESUME         1 -> --resume, continue the checkpoint beside --output;
-#                        resume needs a stable output name, so the generated
-#                        one drops its timestamp
+#                        the generated name swaps its timestamp for a digest of
+#                        the env-derived flags, so a retried pod finds its own
+#                        checkpoint and different experiments never share one
 #   BENCH_OUTPUT         --output verbatim; wins over BENCH_OUTPUT_DIR
 #   BENCH_OUTPUT_DIR     directory for the generated result name (default /results);
 #                        unused when argv carries its own --output
@@ -66,7 +67,9 @@ elif ((!argv_output)); then
     elif [[ -n "${BENCH_SCHEDULER:-}" ]]; then
         label+="-scheduler"
     fi
-    if [[ "${BENCH_RESUME:-}" != "1" ]]; then
+    if [[ "${BENCH_RESUME:-}" == "1" ]]; then
+        label+="-$(printf '%s\0' "${args[@]}" | sha256sum | cut -c1-8)"
+    else
         label+="-$(date -u +%Y%m%dT%H%M%SZ)"
     fi
     args+=(--output "${output_dir}/${label}.json")
