@@ -5,6 +5,7 @@ variable "APP" {
 }
 
 variable "VERSION" {
+  // renovate: datasource=github-tags depName=unclecode/crawl4ai
   default = "v0.6.3"
 }
 

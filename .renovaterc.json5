@@ -65,6 +65,19 @@
       prPriority: -1,
     },
     {
+      // bake VERSION is both the published tag and the vLLM installed in the
+      // image, and transformers is pinned to what vllm 0.22.1 tests against,
+      // so a bump of either alone would mislabel a tag or split the stack
+      // across PRs. automerge false overrides the bake automerge rule above:
+      // patches/ target the 0.22 API and the swap needs a GPU validation.
+      description: ["kserve: move the vLLM stack as one PR, never automerged"],
+      matchFileNames: ["apps/kserve-huggingfaceserver/**"],
+      matchDepNames: ["vllm", "transformers"],
+      groupName: "kserve vLLM stack",
+      groupSlug: "kserve-vllm-stack",
+      automerge: false,
+    },
+    {
       description: ["Allowed Ubuntu Version for Base Images"],
       matchDatasources: ["docker"],
       matchFileNames: ["**/Dockerfile"],

@@ -1,4 +1,3 @@
-# renovate: datasource=github-tags depName=ahmetoner/whisper-asr-webservice
 ARG VERSION="v1.9.1"
 ARG CUDA_VERSION="12.8.0"
 

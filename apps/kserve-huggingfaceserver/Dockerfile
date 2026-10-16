@@ -153,7 +153,6 @@ WORKDIR ${WORKSPACE_DIR}
 FROM base AS build
 
 ARG WORKSPACE_DIR
-# renovate: datasource=pypi depName=vllm
 ARG VLLM_VERSION=0.22.1
 
 WORKDIR ${WORKSPACE_DIR}

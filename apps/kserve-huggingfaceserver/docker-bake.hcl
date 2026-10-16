@@ -5,9 +5,11 @@ variable "APP" {
 }
 
 # Image version → drives the published tags (app-options reads this VERSION
-# variable; app-versions + docker/metadata-action emit 0.22.1 / 0.22 / 0). Track
-# the vLLM version this image provides; bump alongside VLLM_VERSION in the patch.
+# variable; app-versions + docker/metadata-action emit 0.22.1 / 0.22 / 0). It is
+# also handed to the Dockerfile as VLLM_VERSION, so a tag always names the vLLM
+# actually installed in that image.
 variable "VERSION" {
+  // renovate: datasource=pypi depName=vllm
   default = "0.22.1"
 }
 
@@ -51,7 +53,8 @@ group "default" {
 target "image" {
   inherits = ["docker-metadata-action"]
   args = {
-    KSERVE_REF = "${KSERVE_REF}"
+    KSERVE_REF   = "${KSERVE_REF}"
+    VLLM_VERSION = "${VERSION}"
   }
   labels = {
     "org.opencontainers.image.source"   = "${SOURCE}"
