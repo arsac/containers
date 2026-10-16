@@ -3,7 +3,7 @@
 ARG VERSION
 
 # base image
-FROM pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime
+FROM mirror.gcr.io/pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime
 
 # minimum install
 RUN ["apt-get", "-y", "update"]

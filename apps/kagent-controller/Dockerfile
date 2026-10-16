@@ -29,7 +29,7 @@ RUN set -e; for p in /patches/*.patch; do echo "Applying $(basename "$p")"; git 
 # Upstream builds with the repo's go/ directory as the module root (its go.mod
 # requires Go 1.27) and stamps its version package through ldflags, so
 # `kagent version` keeps reporting a release.
-FROM docker.io/library/golang:1.27 AS builder
+FROM mirror.gcr.io/library/golang:1.27 AS builder
 ARG VERSION
 ARG KAGENT_REF
 ARG TARGETOS
