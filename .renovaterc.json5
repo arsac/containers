@@ -146,5 +146,12 @@
       minimumReleaseAge: "3 days",
       ignoreTests: false,
     },
+    {
+      description: ["Commit pins have no release gate, so a human reads what moved before it ships"],
+      matchDatasources: ["git-refs"],
+      matchFileNames: ["**/docker-bake.hcl"],
+      matchUpdateTypes: ["digest"],
+      automerge: false,
+    },
   ],
 }
