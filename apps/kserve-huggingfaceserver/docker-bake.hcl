@@ -18,7 +18,7 @@ variable "VERSION" {
 # re-test the patch applies (git apply fails loudly on drift) + re-validate on
 # GPU.
 variable "KSERVE_REF" {
-  default = "b0eda63d2c105479140af8ec9149d992b7e44be5" // renovate: datasource=git-refs depName=kserve/kserve packageName=https://github.com/kserve/kserve currentValue=main
+  default = "b0eda63d2c105479140af8ec9149d992b7e44be5" // renovate: datasource=git-refs depName=kserve/kserve packageName=https://github.com/kserve/kserve currentValue=release-0.19
 }
 
 variable "SOURCE" {
