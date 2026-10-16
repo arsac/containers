@@ -98,7 +98,7 @@
     },
     {
       description: ["Allowed Python Version for Debian Slim Base Images"],
-      // crawl4ai and mealie-mcp-server pin python:3.12.N-slim-bookworm. Docker
+      // mealie-mcp-server pins python:3.12.N-slim-bookworm. Docker
       // versioning only offers tags with the same number of version parts, so
       // the pin must be three-part for this filter to let patch bumps through.
       // A base on a new series needs its own rule, or the old
