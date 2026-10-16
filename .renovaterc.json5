@@ -147,6 +147,22 @@
       ignoreTests: false,
     },
     {
+      description: ["Commit pins watch exactly the branch named in the annotation - git-refs ranks every ref, so without this a fork jumps release lines"],
+      matchDatasources: ["git-refs"],
+      matchFileNames: ["**/docker-bake.hcl"],
+      matchDepNames: ["McCloudS/subgen", "kagent-dev/kagent", "rldiao/mealie-mcp-server", "ostris/ai-toolkit"],
+      allowedVersions: "/^main$/",
+    },
+    {
+      // The fork is patched against v0.19.0; an unfiltered digest lookup offered
+      // v0.21.0, which no one chose.
+      description: ["kserve's pin tracks its own release branch only"],
+      matchDatasources: ["git-refs"],
+      matchFileNames: ["**/docker-bake.hcl"],
+      matchDepNames: ["kserve/kserve"],
+      allowedVersions: "/^release-0\\.19$/",
+    },
+    {
       description: ["Commit pins have no release gate, so a human reads what moved before it ships"],
       matchDatasources: ["git-refs"],
       matchFileNames: ["**/docker-bake.hcl"],
