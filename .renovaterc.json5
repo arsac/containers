@@ -59,10 +59,35 @@
       ignoreTests: false,
     },
     {
+      description: ["Exempt App Updates from prHourlyLimit and create them last, since they still add to the hourly PR count"],
+      matchFileNames: ["apps/**"],
+      prHourlyLimit: 0,
+      prPriority: -1,
+    },
+    {
+      // bake VERSION is both the published tag and the vLLM installed in the
+      // image, and transformers is pinned to what vllm 0.22.1 tests against,
+      // so a bump of either alone would mislabel a tag or split the stack
+      // across PRs. automerge false overrides the bake automerge rule above:
+      // patches/ target the 0.22 API and the swap needs a GPU validation.
+      description: ["kserve: move the vLLM stack as one PR, never automerged"],
+      matchFileNames: [
+        "apps/kserve-huggingfaceserver/docker-bake.hcl",
+        "apps/kserve-huggingfaceserver/Dockerfile",
+      ],
+      matchDepNames: ["vllm", "transformers"],
+      groupName: "kserve vLLM stack",
+      groupSlug: "kserve-vllm-stack",
+      automerge: false,
+    },
+    {
       description: ["Allowed Ubuntu Version for Base Images"],
       matchDatasources: ["docker"],
+      matchFileNames: ["**/Dockerfile"],
+      // kserve-huggingfaceserver ships ubuntu:25.10, an EOL interim release;
+      // the filter must match the pin and still leave room for the 26.04 LTS move.
       matchPackageNames: ["/ubuntu/"],
-      allowedVersions: "/24\\.04/",
+      allowedVersions: "/^(25\\.10|26\\.04)$/",
     },
     {
       description: ["Allowed Alpine Version for Base Images"],
@@ -72,11 +97,16 @@
       allowedVersions: "/3\\.22/",
     },
     {
-      description: ["Allowed Python Version for Base Images"],
+      description: ["Allowed Python Version for Debian Slim Base Images"],
+      // crawl4ai and mealie-mcp-server pin python:3.12.N-slim-bookworm. Docker
+      // versioning only offers tags with the same number of version parts, so
+      // the pin must be three-part for this filter to let patch bumps through.
+      // A base on a new series needs its own rule, or the old
+      // /3\\.13-alpine3\\.22/ situation again, where nothing matched.
       matchDatasources: ["docker"],
       matchFileNames: ["**/Dockerfile"],
       matchPackageNames: ["/python/"],
-      allowedVersions: "/3\\.13-alpine3\\.22/",
+      allowedVersions: "/3\\.12\\.\\d+-slim-bookworm/",
     },
     {
       description: ["Node: stay on the current even LTS major (block odd/non-LTS 25+)"],
