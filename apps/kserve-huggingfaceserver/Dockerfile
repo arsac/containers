@@ -153,6 +153,7 @@ WORKDIR ${WORKSPACE_DIR}
 FROM base AS build
 
 ARG WORKSPACE_DIR
+# renovate: datasource=pypi depName=vllm
 ARG VLLM_VERSION=0.22.1
 
 WORKDIR ${WORKSPACE_DIR}
@@ -193,6 +194,7 @@ RUN --mount=type=cache,target=/root/.cache/uv uv pip install vllm[runai,tensoriz
 # Gemma 4 needs transformers 5.5.x (the lock resolves 4.57.1, which has no
 # gemma4 config; vllm 0.22.1 tests against 5.5.3 and gemma4_mm imports
 # transformers.models.gemma4 at module load).
+# renovate: datasource=pypi depName=transformers
 RUN --mount=type=cache,target=/root/.cache/uv uv pip install transformers==5.5.3
 
 # vLLM 0.22.1's fused_moe loads nixl_ep, and the stock nixl-cu12 wheel links

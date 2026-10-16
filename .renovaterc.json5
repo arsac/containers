@@ -12,6 +12,18 @@
       datasourceTemplate: "{{#if datasource}}{{{datasource}}}{{else}}github-releases{{/if}}",
       versioningTemplate: "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}",
     },
+    {
+      customType: "regex",
+      description: "Process Annotations in Dockerfiles",
+      managerFilePatterns: ["/(^|/)Dockerfile$/"],
+      // Quote-tolerant value capture, matching the preset's annotated manager,
+      // so the repo's existing quoted ARG defaults need no reformatting.
+      matchStrings: [
+        "datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\n.+(:\\s|=)(&\\S+\\s)?[\"']?(?<currentValue>[^\"'\\s]+)[\"']?",
+      ],
+      datasourceTemplate: "{{#if datasource}}{{{datasource}}}{{else}}github-releases{{/if}}",
+      versioningTemplate: "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}",
+    },
   ],
   customDatasources: {
     qbittorrent: {
@@ -59,10 +71,18 @@
       ignoreTests: false,
     },
     {
+      description: ["Exempt App Updates from prHourlyLimit and create them last, since they still add to the hourly PR count"],
+      matchFileNames: ["apps/**"],
+      prHourlyLimit: 0,
+      prPriority: -1,
+    },
+    {
       description: ["Allowed Ubuntu Version for Base Images"],
       matchDatasources: ["docker"],
+      // kserve-huggingfaceserver ships ubuntu:25.10; a filter that matches no
+      // live tag silences every update for that base, digests included.
       matchPackageNames: ["/ubuntu/"],
-      allowedVersions: "/24\\.04/",
+      allowedVersions: "/25\\.10/",
     },
     {
       description: ["Allowed Alpine Version for Base Images"],
@@ -72,11 +92,15 @@
       allowedVersions: "/3\\.22/",
     },
     {
-      description: ["Allowed Python Version for Base Images"],
+      description: ["Allowed Python Version for Debian Slim Base Images"],
+      // crawl4ai and mealie-mcp-server ship python:3.12-slim-bookworm. This
+      // filter holds each base on its own series so a patch bump can still
+      // reach it; a base on a new series needs its own rule, or the old
+      // /3\\.13-alpine3\\.22/ situation again, where nothing matched.
       matchDatasources: ["docker"],
       matchFileNames: ["**/Dockerfile"],
       matchPackageNames: ["/python/"],
-      allowedVersions: "/3\\.13-alpine3\\.22/",
+      allowedVersions: "/3\\.12\\.\\d+-slim-bookworm/",
     },
     {
       description: ["Node: stay on the current even LTS major (block odd/non-LTS 25+)"],

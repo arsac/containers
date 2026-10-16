@@ -1,3 +1,4 @@
+# renovate: datasource=github-tags depName=unclecode/crawl4ai
 ARG VERSION="v0.6.3"
 
 FROM python:3.12-slim-bookworm AS build
