@@ -200,9 +200,15 @@ RUN --mount=type=cache,target=/root/.cache/uv uv pip install transformers==5.5.3
 # libcudart.so.12 (absent in this CUDA 13 image) -> ImportError that crashes
 # model architecture inspection at engine init. Swap to the cu13 nixl build so
 # nixl_ep resolves libcudart.so.13.
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip uninstall nixl-cu12 || true && \
-    uv pip install nixl-cu13
+#
+# Pinned, because the package renamed its extension: 1.2.0 is the last release
+# shipping a top-level nixl_ep, from 1.3.0 it is nixl_ep_cu13, and vLLM never
+# learned the new name (every release through 0.31.0 still does
+# `import nixl_ep`). Unpinned, uv resolves 1.5.0, which additionally dropped the
+# torch 2.11 extension this image's torch==2.11.0 needs, and the smoke test
+# below fails the build.
+# renovate: datasource=pypi depName=nixl-cu13
+RUN --mount=type=cache,target=/root/.cache/uv uv pip uninstall nixl-cu12 || true && uv pip install nixl-cu13==1.2.0
 
 # flashinfer AOT jit-cache, version-matched to the flashinfer-cubin vLLM pulls
 # in. The prod image has no nvcc, so vLLM's flashinfer sampling kernel for
