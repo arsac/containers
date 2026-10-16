@@ -5,10 +5,9 @@ variable "APP" {
 }
 
 variable "VERSION" {
-  // No tagged releases upstream; pin to a commit SHA. Renovate will bump
-  // this when new commits land on rldiao/mealie-mcp-server@main.
-  // renovate: datasource=git-refs depName=https://github.com/rldiao/mealie-mcp-server lookupName=https://github.com/rldiao/mealie-mcp-server currentValue=main
-  default = "f7a2a5e21e68e223629393a5ad16f55dca6ea577"
+  // No tagged releases upstream; pinned to a commit on main, which Renovate
+  // rewrites when that branch head moves.
+  default = "f7a2a5e21e68e223629393a5ad16f55dca6ea577" // renovate: datasource=git-refs depName=rldiao/mealie-mcp-server packageName=https://github.com/rldiao/mealie-mcp-server currentValue=main
 }
 
 variable "SOURCE" {
