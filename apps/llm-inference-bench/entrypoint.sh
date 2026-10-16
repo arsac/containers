@@ -17,8 +17,10 @@
 #   BENCH_SCHEDULER      --scheduler     e.g. all, or arrivals,short-under-long
 #   BENCH_RESUME         1 -> --resume, continue the checkpoint beside --output;
 #                        the generated name swaps its timestamp for a digest of
-#                        the env-derived flags, so a retried pod finds its own
-#                        checkpoint and different experiments never share one
+#                        the experiment (env flags plus argv, never the API
+#                        key), so a retried pod finds its own checkpoint even
+#                        after a key rotation and different experiments never
+#                        share one
 #   BENCH_OUTPUT         --output verbatim; wins over BENCH_OUTPUT_DIR
 #   BENCH_OUTPUT_DIR     directory for the generated result name (default /results);
 #                        unused when argv carries its own --output
@@ -29,6 +31,25 @@
 # attaching to an interactive pod.
 
 set -euo pipefail
+
+# Prints the given tokens NUL-separated with every API key value replaced, in
+# both the --api-key VALUE and --api-key=VALUE spellings.
+redact() {
+    local redact_next=0 token
+    for token in "$@"; do
+        if ((redact_next)); then
+            token="<redacted>"
+            redact_next=0
+        elif [ "$token" = "--api-key" ]; then
+            redact_next=1
+        elif [[ "$token" == --api-key=* ]]; then
+            token="--api-key=<redacted>"
+        elif [[ -n "${BENCH_API_KEY:-}" ]] && [ "$token" = "$BENCH_API_KEY" ]; then
+            token="<redacted>"
+        fi
+        printf '%s\0' "$token"
+    done
+}
 
 args=(--display-mode "${BENCH_DISPLAY_MODE:-plain}")
 
@@ -68,7 +89,9 @@ elif ((!argv_output)); then
         label+="-scheduler"
     fi
     if [[ "${BENCH_RESUME:-}" == "1" ]]; then
-        label+="-$(printf '%s\0' "${args[@]}" | sha256sum | cut -c1-8)"
+        label+="-$(redact "${args[@]}" "$@" \
+            | grep -zvxE -- '--api-key(=<redacted>)?|<redacted>' \
+            | sha256sum | cut -c1-8)"
     else
         label+="-$(date -u +%Y%m%dT%H%M%SZ)"
     fi
@@ -80,20 +103,9 @@ fi
 # only place the invocation survives, and the key must not survive with it.
 cmd=(python /opt/bench/llm_decode_bench.py "${args[@]}" "$@")
 printf 'running:'
-redact_next=0
-for token in "${cmd[@]}"; do
-    if ((redact_next)); then
-        token="<redacted>"
-        redact_next=0
-    elif [ "$token" = "--api-key" ]; then
-        redact_next=1
-    elif [[ "$token" == --api-key=* ]]; then
-        token="--api-key=<redacted>"
-    elif [[ -n "${BENCH_API_KEY:-}" ]] && [ "$token" = "$BENCH_API_KEY" ]; then
-        token="<redacted>"
-    fi
+while IFS= read -r -d '' token; do
     printf ' %s' "$token"
-done
+done < <(redact "${cmd[@]}")
 printf '\n'
 
 if [[ "${BENCH_DRY_RUN:-}" == "1" ]]; then
