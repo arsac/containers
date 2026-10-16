@@ -141,6 +141,15 @@
       allowedVersions: "/3\\.14\\.\\d+-slim-bookworm/",
     },
     {
+      // 1.3.0 renamed the extension to nixl_ep_cu13; vLLM still imports the
+      // top-level nixl_ep, so anything on the 1.3+ line breaks the build.
+      description: ["nixl-cu13: stay on the 1.2 line, the last one vLLM can import"],
+      matchDatasources: ["pypi"],
+      matchFileNames: ["apps/kserve-huggingfaceserver/Dockerfile"],
+      matchPackageNames: ["nixl-cu13"],
+      allowedVersions: "<1.3",
+    },
+    {
       description: ["Auto-merge llm-inference-bench python/uv base image minor+patch on green CI"],
       matchDatasources: ["docker"],
       matchFileNames: ["apps/llm-inference-bench/Dockerfile"],
