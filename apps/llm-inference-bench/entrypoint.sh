@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# Job entrypoint for the llm-inference-bench image.
+#
+# Composes the bench command line from environment variables and appends argv,
+# so a Kubernetes Job declares an experiment declaratively and still has an
+# escape hatch: argparse keeps the last occurrence of a flag, which means every
+# flag below can be overridden by passing it again in `command:`.
+#
+#   BENCH_HOST           --host    (accepts a full URL, e.g. https://vllm:8000)
+#   BENCH_PORT           --port
+#   BENCH_MODEL          --model
+#   BENCH_API_KEY        --api-key (Bearer token; from a secretKeyRef)
+#   BENCH_CONCURRENCY    --concurrency   e.g. "1,2,4,8"
+#   BENCH_CONTEXTS       --contexts      e.g. "0,16k,32k,128k"
+#   BENCH_DURATION       --duration      seconds per decode cell
+#   BENCH_MAX_TOKENS     --max-tokens
+#   BENCH_TEST_PROFILE   --test-profile  e.g. gsm8k, mmlu-pro, gpqa-diamond
+#   BENCH_SCHEDULER      --scheduler     e.g. all, or arrivals,short-under-long
+#   BENCH_RESUME         1 -> --resume, continue the checkpoint beside --output
+#   BENCH_OUTPUT         --output verbatim; wins over BENCH_OUTPUT_DIR
+#   BENCH_OUTPUT_DIR     directory for the generated result name (default /results)
+#   BENCH_DRY_RUN        1 -> print the composed command and exit 0
+#
+# Display defaults to plain: the Rich alternate-screen TUI has nothing to draw
+# into a log collector. Override with BENCH_DISPLAY_MODE=screen|live when
+# attaching to an interactive pod.
+
+set -euo pipefail
+
+# A pinned copy must never offer to upgrade itself mid-experiment.
+export LLM_BENCH_NO_UPDATE_CHECK=1
+# Where the baked tool-eval-bench venv lives; point it at a writable directory
+# only when passing a --tool-eval-ref that is not the baked commit.
+export LLM_BENCH_CACHE_DIR="${LLM_BENCH_CACHE_DIR:-/opt/bench/cache}"
+
+args=(--display-mode "${BENCH_DISPLAY_MODE:-plain}")
+
+[[ -n "${BENCH_HOST:-}" ]] && args+=(--host "$BENCH_HOST")
+[[ -n "${BENCH_PORT:-}" ]] && args+=(--port "$BENCH_PORT")
+[[ -n "${BENCH_MODEL:-}" ]] && args+=(--model "$BENCH_MODEL")
+[[ -n "${BENCH_API_KEY:-}" ]] && args+=(--api-key "$BENCH_API_KEY")
+[[ -n "${BENCH_CONCURRENCY:-}" ]] && args+=(--concurrency "$BENCH_CONCURRENCY")
+[[ -n "${BENCH_CONTEXTS:-}" ]] && args+=(--contexts "$BENCH_CONTEXTS")
+[[ -n "${BENCH_DURATION:-}" ]] && args+=(--duration "$BENCH_DURATION")
+[[ -n "${BENCH_MAX_TOKENS:-}" ]] && args+=(--max-tokens "$BENCH_MAX_TOKENS")
+[[ -n "${BENCH_TEST_PROFILE:-}" ]] && args+=(--test-profile "$BENCH_TEST_PROFILE")
+[[ -n "${BENCH_SCHEDULER:-}" ]] && args+=(--scheduler "$BENCH_SCHEDULER")
+[[ "${BENCH_RESUME:-}" == "1" ]] && args+=(--resume)
+
+# Results must land on storage the job mounts, or they die with the pod.
+if [[ -z "${BENCH_OUTPUT:-}" ]]; then
+    output_dir="${BENCH_OUTPUT_DIR:-/results}"
+    if ! mkdir -p "$output_dir" 2>/dev/null || [[ ! -w "$output_dir" ]]; then
+        echo "ERROR: ${output_dir} is not writable." >&2
+        echo "Fix: mount a volume at ${output_dir}, or set BENCH_OUTPUT_DIR to a writable path." >&2
+        exit 1
+    fi
+    label="${BENCH_MODEL:-bench}"
+    label="${label//[^A-Za-z0-9._-]/_}"
+    if [[ -n "${BENCH_TEST_PROFILE:-}" ]]; then
+        label+="-${BENCH_TEST_PROFILE}"
+    elif [[ -n "${BENCH_SCHEDULER:-}" ]]; then
+        label+="-scheduler"
+    fi
+    args+=(--output "${output_dir}/${label}-$(date -u +%Y%m%dT%H%M%SZ).json")
+else
+    args+=(--output "$BENCH_OUTPUT")
+fi
+
+# Log the exact experiment for the job record. The credential stays out of it:
+# the bench records structured metadata rather than argv, so this line is the
+# only place the invocation survives, and the key must not survive with it.
+cmd=(python /opt/bench/llm_decode_bench.py "${args[@]}" "$@")
+printf 'running:'
+for token in "${cmd[@]}"; do
+    if [[ -n "${BENCH_API_KEY:-}" ]] && [ "$token" = "$BENCH_API_KEY" ]; then
+        token="<redacted>"
+    fi
+    printf ' %s' "$token"
+done
+printf '\n'
+
+if [[ "${BENCH_DRY_RUN:-}" == "1" ]]; then
+    exit 0
+fi
+
+exec "${cmd[@]}"

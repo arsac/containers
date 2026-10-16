@@ -1,0 +1,177 @@
+# container-structure-test spec (run by .github/actions/app-tests against the
+# built image, per arch). Gates the parts of this image that a build alone does
+# not: that the pinned tag really is the code that runs, that every experiment
+# mode works without egress, and that the entrypoint maps env to flags.
+#
+# Note on syntax: container-structure-test expands $VAR inside command args
+# before the container's shell sees them, so the tests below use no shell
+# variables at all. The entrypoint assertions compare the composed command
+# token by token instead.
+schemaVersion: "2.0.0"
+
+metadataTest:
+  entrypoint: ["llm-inference-bench"]
+  workdir: "/opt/bench"
+  user: "65534:65534"
+
+fileExistenceTests:
+  - name: bench script
+    path: /opt/bench/llm_decode_bench.py
+    shouldExist: true
+  - name: lil-bench orchestrator
+    path: /opt/bench/lil_bench/standard.py
+    shouldExist: true
+  - name: gsm8k dataset
+    path: /opt/bench/data/gsm8k_test.jsonl
+    shouldExist: true
+  - name: mmlu-pro dataset
+    path: /opt/bench/data/mmlu_pro_1000.jsonl
+    shouldExist: true
+  - name: gpqa diamond dataset
+    path: /opt/bench/data/gpqa_diamond.jsonl
+    shouldExist: true
+  - name: dataset attribution record
+    path: /opt/bench/data/provenance.json
+    shouldExist: true
+  - name: p2pmark fabric diagnostic
+    path: /opt/bench/tools/p2pmark/llm_p2pmark
+    shouldExist: true
+
+commandTests:
+  # A renovate bump that repoints the tag without rebuilding the tree, or a
+  # tarball that no longer matches its tag, is caught here rather than in an
+  # experiment whose provenance silently disagrees with its image tag.
+  - name: shipped code matches the pinned version
+    command: python
+    args:
+      - "-c"
+      - |
+        import os, sys
+        sys.path.insert(0, "/opt/bench")
+        import llm_decode_bench as bench
+        want = os.environ["LLM_BENCH_VERSION"]
+        assert bench.VERSION == want, (bench.VERSION, want)
+        print(bench.VERSION)
+    exitCode: 0
+
+  - name: benchmark dependencies import
+    command: python
+    args:
+      - "-c"
+      - "import httpx, rich, psutil, pynvml, requests, PIL; print('ok')"
+    exitCode: 0
+
+  # All three accuracy profiles must resolve from the copies baked next to the
+  # script. With no writable cache directory a dataset the bench would reject
+  # (or had to download) fails here instead of on the first GPU node that has
+  # no egress to GitHub.
+  - name: accuracy profiles resolve offline
+    command: env
+    args:
+      - "-i"
+      - "PATH=/usr/local/bin:/usr/bin:/bin"
+      - "HOME=/nonexistent"
+      - "LLM_BENCH_CACHE_DIR=/proc/1/llm-bench-cache"
+      - "python"
+      - "-c"
+      - |
+        import sys
+        sys.path.insert(0, "/opt/bench")
+        import llm_decode_bench as bench
+        for name in ("gsm8k_test", "mmlu_pro_1000", "gpqa_diamond"):
+            path, digest = bench.resolve_benchmark_dataset(name)
+            assert path.startswith("/opt/bench/data/"), (name, path)
+            print(name, digest[:12])
+    exitCode: 0
+
+  # --tool-eval has to find the venv at the layout the bench itself writes and
+  # return before it touches the cache, which is also what makes it work on a
+  # read-only root filesystem.
+  - name: tool-eval-bench is baked at the pinned commit
+    command: env
+    args:
+      - "-i"
+      - "PATH=/usr/local/bin:/usr/bin:/bin"
+      - "HOME=/nonexistent"
+      - "LLM_BENCH_CACHE_DIR=/opt/bench/cache"
+      - "python"
+      - "-c"
+      - |
+        import sys
+        sys.path.insert(0, "/opt/bench")
+        import llm_decode_bench as bench
+        ref = bench.TOOL_EVAL_PINNED_REF
+        marker = bench.tool_eval_cache_root() / ref / "install.json"
+        assert marker.is_file(), str(marker)
+        install = bench.ensure_tool_eval_install(ref)
+        assert install["commit"] == ref, install
+        print("tool-eval-bench", install["version"])
+    exitCode: 0
+
+  # The contract a Job author depends on: environment variables become flags in
+  # the right order, argv stays last so it wins under argparse's last-wins, and
+  # the bearer token never reaches the log line.
+  - name: entrypoint composes the bench command from the environment
+    command: bash
+    args:
+      - "-c"
+      - |
+        env BENCH_DRY_RUN=1 BENCH_HOST=https://vllm:8000 \
+            BENCH_MODEL=Qwen3.5/AWQ BENCH_API_KEY=sup3rsecret \
+            BENCH_CONTEXTS=0,32k BENCH_TEST_PROFILE=gsm8k \
+            BENCH_OUTPUT=/tmp/results.json \
+            llm-inference-bench --concurrency 1,8 --display-mode live \
+            | tr ' ' '\n' >/tmp/composed
+        cat >/tmp/expected <<'EXP'
+        running:
+        python
+        /opt/bench/llm_decode_bench.py
+        --display-mode
+        plain
+        --host
+        https://vllm:8000
+        --model
+        Qwen3.5/AWQ
+        --api-key
+        <redacted>
+        --contexts
+        0,32k
+        --test-profile
+        gsm8k
+        --output
+        /tmp/results.json
+        --concurrency
+        1,8
+        --display-mode
+        live
+        EXP
+        diff -u /tmp/expected /tmp/composed
+    exitCode: 0
+
+  - name: entrypoint names results after the model and profile
+    command: bash
+    args:
+      - "-c"
+      - |
+        env BENCH_DRY_RUN=1 BENCH_MODEL=Qwen3.5/AWQ \
+            BENCH_TEST_PROFILE=gpqa-diamond BENCH_OUTPUT_DIR=/tmp/r \
+            llm-inference-bench \
+            | tr ' ' '\n' \
+            | sed 's|.*/||' \
+            | grep -qxE 'Qwen3\.5_AWQ-gpqa-diamond-[0-9]{8}T[0-9]{6}Z\.json'
+    exitCode: 0
+
+  # Without a mounted volume the default /results target must fail with the
+  # fix, not with a traceback from deep inside the bench.
+  - name: entrypoint refuses an unwritable results directory
+    command: bash
+    args:
+      - "-c"
+      - |
+        env BENCH_DRY_RUN=1 BENCH_OUTPUT_DIR=/proc/1/nope \
+            llm-inference-bench 2>&1 | grep -q 'is not writable'
+        env BENCH_DRY_RUN=1 BENCH_OUTPUT_DIR=/proc/1/nope \
+            llm-inference-bench 2>&1 | grep -q BENCH_OUTPUT_DIR
+        ! env BENCH_DRY_RUN=1 BENCH_OUTPUT_DIR=/proc/1/nope \
+            llm-inference-bench 2>/dev/null
+    exitCode: 0
