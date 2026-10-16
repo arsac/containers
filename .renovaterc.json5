@@ -71,7 +71,10 @@
       // across PRs. automerge false overrides the bake automerge rule above:
       // patches/ target the 0.22 API and the swap needs a GPU validation.
       description: ["kserve: move the vLLM stack as one PR, never automerged"],
-      matchFileNames: ["apps/kserve-huggingfaceserver/**"],
+      matchFileNames: [
+        "apps/kserve-huggingfaceserver/docker-bake.hcl",
+        "apps/kserve-huggingfaceserver/Dockerfile",
+      ],
       matchDepNames: ["vllm", "transformers"],
       groupName: "kserve vLLM stack",
       groupSlug: "kserve-vllm-stack",
