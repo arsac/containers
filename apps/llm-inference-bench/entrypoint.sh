@@ -7,7 +7,6 @@
 # flag below can be overridden by passing it again in `command:`.
 #
 #   BENCH_HOST           --host    (accepts a full URL, e.g. https://vllm:8000)
-#   BENCH_PORT           --port
 #   BENCH_MODEL          --model
 #   BENCH_API_KEY        --api-key (Bearer token; from a secretKeyRef)
 #   BENCH_CONCURRENCY    --concurrency   e.g. "1,2,4,8"
@@ -16,9 +15,12 @@
 #   BENCH_MAX_TOKENS     --max-tokens
 #   BENCH_TEST_PROFILE   --test-profile  e.g. gsm8k, mmlu-pro, gpqa-diamond
 #   BENCH_SCHEDULER      --scheduler     e.g. all, or arrivals,short-under-long
-#   BENCH_RESUME         1 -> --resume, continue the checkpoint beside --output
+#   BENCH_RESUME         1 -> --resume, continue the checkpoint beside --output;
+#                        resume needs a stable output name, so the generated
+#                        one drops its timestamp
 #   BENCH_OUTPUT         --output verbatim; wins over BENCH_OUTPUT_DIR
-#   BENCH_OUTPUT_DIR     directory for the generated result name (default /results)
+#   BENCH_OUTPUT_DIR     directory for the generated result name (default /results);
+#                        unused when argv carries its own --output
 #   BENCH_DRY_RUN        1 -> print the composed command and exit 0
 #
 # Display defaults to plain: the Rich alternate-screen TUI has nothing to draw
@@ -27,16 +29,9 @@
 
 set -euo pipefail
 
-# A pinned copy must never offer to upgrade itself mid-experiment.
-export LLM_BENCH_NO_UPDATE_CHECK=1
-# Where the baked tool-eval-bench venv lives; point it at a writable directory
-# only when passing a --tool-eval-ref that is not the baked commit.
-export LLM_BENCH_CACHE_DIR="${LLM_BENCH_CACHE_DIR:-/opt/bench/cache}"
-
 args=(--display-mode "${BENCH_DISPLAY_MODE:-plain}")
 
 [[ -n "${BENCH_HOST:-}" ]] && args+=(--host "$BENCH_HOST")
-[[ -n "${BENCH_PORT:-}" ]] && args+=(--port "$BENCH_PORT")
 [[ -n "${BENCH_MODEL:-}" ]] && args+=(--model "$BENCH_MODEL")
 [[ -n "${BENCH_API_KEY:-}" ]] && args+=(--api-key "$BENCH_API_KEY")
 [[ -n "${BENCH_CONCURRENCY:-}" ]] && args+=(--concurrency "$BENCH_CONCURRENCY")
@@ -47,8 +42,17 @@ args=(--display-mode "${BENCH_DISPLAY_MODE:-plain}")
 [[ -n "${BENCH_SCHEDULER:-}" ]] && args+=(--scheduler "$BENCH_SCHEDULER")
 [[ "${BENCH_RESUME:-}" == "1" ]] && args+=(--resume)
 
+argv_output=0
+for arg in "$@"; do
+    case "$arg" in
+        --output | --output=*) argv_output=1 ;;
+    esac
+done
+
 # Results must land on storage the job mounts, or they die with the pod.
-if [[ -z "${BENCH_OUTPUT:-}" ]]; then
+if [[ -n "${BENCH_OUTPUT:-}" ]]; then
+    args+=(--output "$BENCH_OUTPUT")
+elif ((!argv_output)); then
     output_dir="${BENCH_OUTPUT_DIR:-/results}"
     if ! mkdir -p "$output_dir" 2>/dev/null || [[ ! -w "$output_dir" ]]; then
         echo "ERROR: ${output_dir} is not writable." >&2
@@ -62,9 +66,10 @@ if [[ -z "${BENCH_OUTPUT:-}" ]]; then
     elif [[ -n "${BENCH_SCHEDULER:-}" ]]; then
         label+="-scheduler"
     fi
-    args+=(--output "${output_dir}/${label}-$(date -u +%Y%m%dT%H%M%SZ).json")
-else
-    args+=(--output "$BENCH_OUTPUT")
+    if [[ "${BENCH_RESUME:-}" != "1" ]]; then
+        label+="-$(date -u +%Y%m%dT%H%M%SZ)"
+    fi
+    args+=(--output "${output_dir}/${label}.json")
 fi
 
 # Log the exact experiment for the job record. The credential stays out of it:
@@ -72,8 +77,16 @@ fi
 # only place the invocation survives, and the key must not survive with it.
 cmd=(python /opt/bench/llm_decode_bench.py "${args[@]}" "$@")
 printf 'running:'
+redact_next=0
 for token in "${cmd[@]}"; do
-    if [[ -n "${BENCH_API_KEY:-}" ]] && [ "$token" = "$BENCH_API_KEY" ]; then
+    if ((redact_next)); then
+        token="<redacted>"
+        redact_next=0
+    elif [ "$token" = "--api-key" ]; then
+        redact_next=1
+    elif [[ "$token" == --api-key=* ]]; then
+        token="--api-key=<redacted>"
+    elif [[ -n "${BENCH_API_KEY:-}" ]] && [ "$token" = "$BENCH_API_KEY" ]; then
         token="<redacted>"
     fi
     printf ' %s' "$token"

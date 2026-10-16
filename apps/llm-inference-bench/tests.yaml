@@ -169,9 +169,65 @@ commandTests:
       - "-c"
       - |
         env BENCH_DRY_RUN=1 BENCH_OUTPUT_DIR=/proc/1/nope \
-            llm-inference-bench 2>&1 | grep -q 'is not writable'
+            llm-inference-bench 2>&1 | grep -q 'is not writable' &&
         env BENCH_DRY_RUN=1 BENCH_OUTPUT_DIR=/proc/1/nope \
-            llm-inference-bench 2>&1 | grep -q BENCH_OUTPUT_DIR
+            llm-inference-bench 2>&1 | grep -q BENCH_OUTPUT_DIR &&
         ! env BENCH_DRY_RUN=1 BENCH_OUTPUT_DIR=/proc/1/nope \
             llm-inference-bench 2>/dev/null
+    exitCode: 0
+
+  # A retried pod must resolve the same --output, or the bench never finds the
+  # <output>.resume.json checkpoint and silently reruns the whole matrix.
+  - name: entrypoint resumes into a stable result name
+    command: bash
+    args:
+      - "-c"
+      - |
+        env BENCH_DRY_RUN=1 BENCH_RESUME=1 BENCH_MODEL=Qwen3.5/AWQ \
+            BENCH_TEST_PROFILE=gsm8k BENCH_OUTPUT_DIR=/tmp/r \
+            llm-inference-bench >/tmp/first &&
+        sleep 1 &&
+        env BENCH_DRY_RUN=1 BENCH_RESUME=1 BENCH_MODEL=Qwen3.5/AWQ \
+            BENCH_TEST_PROFILE=gsm8k BENCH_OUTPUT_DIR=/tmp/r \
+            llm-inference-bench >/tmp/second &&
+        diff -u /tmp/first /tmp/second &&
+        tr ' ' '\n' </tmp/first | grep -qx -- --resume &&
+        tr ' ' '\n' </tmp/first | grep -qx /tmp/r/Qwen3.5_AWQ-gsm8k.json
+    exitCode: 0
+
+  # argv owns --output in either spelling, so the default /results target (not
+  # writable here without a volume) must not be checked or composed at all.
+  - name: entrypoint lets argv choose the output path
+    command: bash
+    args:
+      - "-c"
+      - |
+        ! env BENCH_DRY_RUN=1 llm-inference-bench >/dev/null 2>&1 &&
+        env BENCH_DRY_RUN=1 llm-inference-bench --output /tmp/run.json \
+            >/tmp/spaced 2>/tmp/spaced.err &&
+        env BENCH_DRY_RUN=1 llm-inference-bench --output=/tmp/run.json \
+            >/tmp/joined 2>/tmp/joined.err &&
+        ! grep -q results /tmp/spaced /tmp/spaced.err /tmp/joined /tmp/joined.err &&
+        tr ' ' '\n' </tmp/spaced | grep -cx -- --output | grep -qx 1 &&
+        tr ' ' '\n' </tmp/spaced | tail -n 1 | grep -qx /tmp/run.json &&
+        tr ' ' '\n' </tmp/joined | grep -c -- --output | grep -qx 1 &&
+        tr ' ' '\n' </tmp/joined | tail -n 1 | grep -qx -- --output=/tmp/run.json
+    exitCode: 0
+
+  # The bench records no argv, so the log line is the only place a key passed
+  # as an argument could leak, in either spelling and next to an env key.
+  - name: entrypoint never logs a key passed through argv
+    command: bash
+    args:
+      - "-c"
+      - |
+        env BENCH_DRY_RUN=1 BENCH_OUTPUT=/tmp/results.json \
+            llm-inference-bench --api-key argvs3cret >/tmp/spaced 2>&1 &&
+        env BENCH_DRY_RUN=1 BENCH_OUTPUT=/tmp/results.json \
+            llm-inference-bench --api-key=argvs3cret >/tmp/joined 2>&1 &&
+        env BENCH_DRY_RUN=1 BENCH_OUTPUT=/tmp/results.json BENCH_API_KEY=envkey \
+            llm-inference-bench --api-key argvs3cret >/tmp/both 2>&1 &&
+        ! grep -q -e argvs3cret -e envkey /tmp/spaced /tmp/joined /tmp/both &&
+        tr ' ' '\n' </tmp/spaced | tail -n 1 | grep -qx '<redacted>' &&
+        tr ' ' '\n' </tmp/joined | tail -n 1 | grep -qx -- '--api-key=<redacted>'
     exitCode: 0

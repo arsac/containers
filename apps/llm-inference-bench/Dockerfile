@@ -14,6 +14,10 @@ FROM python:3.14.8-slim-bookworm
 
 ARG VERSION
 
+# A pinned copy must never offer to upgrade itself mid-experiment.
+# LLM_BENCH_CACHE_DIR is where the baked tool-eval-bench venv lives; point it at
+# a writable directory only when passing a --tool-eval-ref that is not the baked
+# commit.
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     LLM_BENCH_NO_UPDATE_CHECK=1 \
