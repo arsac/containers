@@ -4,7 +4,7 @@
 # Composes the bench command line from environment variables and appends argv,
 # so a Kubernetes Job declares an experiment declaratively and still has an
 # escape hatch: argparse keeps the last occurrence of a flag, which means every
-# flag below can be overridden by passing it again in `command:`.
+# flag below can be overridden by passing it again in the Job's `args:`.
 #
 #   BENCH_HOST           --host    (accepts a full URL, e.g. https://vllm:8000)
 #   BENCH_MODEL          --model
