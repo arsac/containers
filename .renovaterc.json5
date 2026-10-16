@@ -103,5 +103,23 @@
       minimumReleaseAge: "3 days",
       ignoreTests: false,
     },
+    {
+      description: ["llm-inference-bench: python base capped at 3.14 - psutil publishes no cp315 wheels, so a 3.15 base fails the dependency install"],
+      matchDatasources: ["docker"],
+      matchFileNames: ["apps/llm-inference-bench/Dockerfile"],
+      matchPackageNames: ["/python/"],
+      allowedVersions: "/3\\.14\\.\\d+-slim-bookworm/",
+    },
+    {
+      description: ["Auto-merge llm-inference-bench python/uv base image minor+patch on green CI"],
+      matchDatasources: ["docker"],
+      matchFileNames: ["apps/llm-inference-bench/Dockerfile"],
+      matchPackageNames: ["/python/", "ghcr.io/astral-sh/uv"],
+      matchUpdateTypes: ["minor", "patch", "digest"],
+      automerge: true,
+      automergeType: "pr",
+      minimumReleaseAge: "3 days",
+      ignoreTests: false,
+    },
   ],
 }
