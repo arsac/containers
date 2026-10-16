@@ -1,7 +1,7 @@
 ARG VERSION="1d959b16cc99683824aa849744a95d8ac6c8952a"
 ARG CUDA_VERSION="12.8.0"
 
-FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu24.04
+FROM mirror.gcr.io/nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu24.04
 
 ARG VERSION
 

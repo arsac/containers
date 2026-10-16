@@ -1,7 +1,7 @@
 # Pin to upstream commit — rldiao/mealie-mcp-server has no tagged releases.
 ARG VERSION="f7a2a5e21e68e223629393a5ad16f55dca6ea577"
 
-FROM python:3.12.15-slim-bookworm
+FROM mirror.gcr.io/library/python:3.12.15-slim-bookworm
 
 ARG VERSION
 
