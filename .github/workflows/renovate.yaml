@@ -1,0 +1,54 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Renovate
+on:
+  schedule:
+    - cron: "0 4 * * *" # daily 04:00 UTC, matching fire-engine
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: "Renovate log level"
+        type: choice
+        options: [debug, info, warn, error]
+        default: info
+      dryRun:
+        description: "Dry-run mode (no PRs/commits)"
+        type: choice
+        options: ["disabled", "extract", "lookup", "full"]
+        default: disabled
+
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  renovate:
+    name: Self-hosted Renovate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # GITHUB_TOKEN can't do this job: PRs it opens don't trigger workflows,
+      # so the image builds that gate an automerge never run. The App token
+      # makes Renovate's PRs behave like any contributor's.
+      - name: Mint bot-jackson token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.BOT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+
+      # autodiscover stays off: the App is installed on more than this repo.
+      - name: Self-hosted Renovate
+        uses: renovatebot/github-action@230ce922b08968d0a4f6f70f295601daff09ef1d # v46.3.7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+        env:
+          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
+          RENOVATE_DRY_RUN: >-
+            ${{ inputs.dryRun == 'disabled' && 'null' || inputs.dryRun }}
+          RENOVATE_PLATFORM: github
+          RENOVATE_AUTODISCOVER: "false"
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
