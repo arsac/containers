@@ -12,7 +12,7 @@ variable "VERSION" {
 # Pinned upstream Honcho release tag. The Dockerfile fetches this ref's mcp/.
 variable "HONCHO_REF" {
   // renovate: datasource=github-tags depName=plastic-labs/honcho
-  default = "v3.0.11"
+  default = "v3.3.0"
 }
 
 variable "SOURCE" {
