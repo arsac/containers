@@ -70,3 +70,22 @@ jobs:
   #       image: ${{ matrix.app }}
   #       release: ${{ github.event_name == 'workflow_dispatch' && inputs.release || github.event_name == 'push' }}
   #
+
+  status:
+    if: ${{ !cancelled() }}
+    name: Build Success
+    needs: ["build-apps"]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: none
+    steps:
+      # cancelled counts as failed: !cancelled() above still runs this job when
+      # individual needs were cancelled but the run was not, and a required job
+      # that never reached a verdict must not clear the merge gate.
+      - name: Any jobs failed?
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
+
+      - name: All jobs passed or skipped?
+        if: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
+        run: echo "All jobs passed or skipped" && echo "${{ toJSON(needs.*.result) }}"
