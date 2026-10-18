@@ -31,3 +31,42 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo "probe ${{ inputs.image }}"
+
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      changed-apps: ${{ steps.changed-apps.outputs.changed_files }}
+    steps:
+      - name: Get Changed Apps
+        id: changed-apps
+        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
+        with:
+          path: apps
+          include_only_directories: true
+          max_depth: 1
+
+  #   build-apps:
+  #     if: ${{ needs.prepare.outputs.changed-apps != '[]' || github.event_name == 'workflow_dispatch' }}
+  #     name: Build ${{ matrix.app }}
+  #     needs: ["prepare"]
+  #     uses: ./.github/workflows/image-builder.yaml
+  #     permissions:
+  #       attestations: write
+  #       contents: write
+  #       id-token: write
+  #       packages: write
+  #       security-events: write
+  #     secrets:
+  #       BOT_APP_CLIENT_ID: ${{ secrets.BOT_APP_CLIENT_ID }}
+  #       BOT_APP_PRIVATE_KEY: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+  #       DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+  #     strategy:
+  #       matrix:
+  #         app: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', inputs.image)) || fromJSON(needs.prepare.outputs.changed-apps) }}
+  #       fail-fast: false
+  #       max-parallel: 4
+  #     with:
+  #       image: ${{ matrix.app }}
+  #       release: ${{ github.event_name == 'workflow_dispatch' && inputs.release || github.event_name == 'push' }}
+  #
