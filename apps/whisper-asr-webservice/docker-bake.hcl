@@ -6,7 +6,7 @@ variable "APP" {
 
 variable "VERSION" {
   // renovate: datasource=github-tags depName=ahmetoner/whisper-asr-webservice
-  default = "v1.9.1"
+  default = "v1.10.0"
 }
 
 variable "SOURCE" {
