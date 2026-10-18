@@ -62,9 +62,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install /tmp/wheels/sageattention*.whl && \
     rm -rf /tmp/wheels
 
-# Attention-adjacent source builds used by ComfyUI 3D workflows
+# Attention-adjacent source builds used by ComfyUI 3D workflows; pybind11 is
+# a build dep of the Hunyuan3D and diso setup.py files (the upstream pytorch
+# image does not ship it, unlike the old cuda-ml base)
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install git+https://github.com/NVlabs/nvdiffrast.git --no-build-isolation && \
+    uv pip install pybind11 git+https://github.com/NVlabs/nvdiffrast.git --no-build-isolation && \
     git clone --depth 1 --filter=blob:none --sparse \
     https://github.com/Tencent-Hunyuan/Hunyuan3D-2.git /tmp/hunyuan3d && \
     cd /tmp/hunyuan3d && \
