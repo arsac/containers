@@ -23,7 +23,7 @@ variable "OPENCODE_VERSION" {
 
 variable "NO_MISTAKES_VERSION" {
   // renovate: datasource=github-releases depName=kunchenguid/no-mistakes
-  default = "v1.57.0"
+  default = "v1.84.0"
 }
 
 variable "TREEHOUSE_VERSION" {
