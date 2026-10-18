@@ -11,7 +11,7 @@ variable "VERSION" {
 
 variable "GNHF_VERSION" {
   // renovate: datasource=npm depName=gnhf
-  default = "0.1.45"
+  default = "0.1.51"
 }
 
 # The agent gnhf drives. Provider-agnostic on purpose - it takes an
