@@ -5,20 +5,12 @@ name: Release
 on:
   push:
     branches: ["main"]
-    paths: ["apps/**", "base/**"]
+    paths: ["apps/**"]
   workflow_dispatch:
     inputs:
-      type:
-        type: choice
-        description: Image type
-        required: true
-        default: apps
-        options:
-          - apps
-          - base
       image:
         type: string
-        description: Image name (e.g., "comfyui" or "cuda-ml")
+        description: Image name (e.g., "comfyui")
         required: true
       release:
         type: boolean
@@ -30,14 +22,15 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   prepare:
     name: Prepare
     runs-on: ubuntu-latest
     outputs:
       changed-apps: ${{ steps.changed-apps.outputs.changed_files }}
-      changed-bases: ${{ steps.changed-bases.outputs.changed_files }}
-      changed-bases-runtime: ${{ steps.filter-runtime.outputs.bases }}
     steps:
       - name: Get Changed Apps
         id: changed-apps
@@ -47,70 +40,9 @@ jobs:
           include_only_directories: true
           max_depth: 1
 
-      - name: Get Changed Bases
-        id: changed-bases
-        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
-        with:
-          path: base
-          include_only_directories: true
-          max_depth: 1
-
-      - name: Checkout (for runtime filter)
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Filter Bases With Runtime Variant
-        id: filter-runtime
-        env:
-          CHANGED_BASES: ${{ steps.changed-bases.outputs.changed_files }}
-          DISPATCH_TYPE: ${{ github.event_name == 'workflow_dispatch' && inputs.type || '' }}
-          DISPATCH_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.image || '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "$DISPATCH_TYPE" == "base" ]]; then
-            candidates=$(jq -nc --arg b "$DISPATCH_IMAGE" '[$b]')
-          else
-            candidates="${CHANGED_BASES:-[]}"
-          fi
-          bases='[]'
-          for b in $(echo "$candidates" | jq -r '.[]'); do
-            if [[ -f "base/$b/Dockerfile.runtime" ]]; then
-              bases=$(echo "$bases" | jq --arg b "$b" '. + [$b]')
-            fi
-          done
-          echo "Runtime-variant bases: $bases"
-          echo "bases=$bases" >> "$GITHUB_OUTPUT"
-
-  # Build base images: devel first, then runtime (runtime pulls from published devel)
-  # Runtime variant - depends on devel being published first.
-  # Only runs for bases that have a Dockerfile.runtime; devel-only bases are skipped.
-  build-bases:
-    if: ${{ always() && !failure() && !cancelled() && needs.prepare.outputs.changed-bases-runtime != '[]' }}
-    name: Build Base ${{ matrix.base }}
-    needs: ["prepare", "build-bases-devel"]
-    uses: ./.github/workflows/image-builder.yaml
-    permissions:
-      attestations: write
-      contents: write
-      id-token: write
-      packages: write
-      security-events: write
-    secrets: inherit
-    strategy:
-      matrix:
-        base: ${{ fromJSON(needs.prepare.outputs.changed-bases-runtime) }}
-      fail-fast: false
-    with:
-      image: ${{ matrix.base }}
-      path: base
-      release: ${{ github.event_name == 'workflow_dispatch' && inputs.release || github.event_name == 'push' }}
-
-  # Devel variant - built first (runtime depends on published devel)
-  build-bases-devel:
-    if: ${{ needs.prepare.outputs.changed-bases != '[]' || (github.event_name == 'workflow_dispatch' && inputs.type == 'base') }}
-    name: Build Base ${{ matrix.base }} (devel)
+  build-apps:
+    if: ${{ needs.prepare.outputs.changed-apps != '[]' || github.event_name == 'workflow_dispatch' }}
+    name: Build ${{ matrix.app }}
     needs: ["prepare"]
     uses: ./.github/workflows/image-builder.yaml
     permissions:
@@ -119,31 +51,10 @@ jobs:
       id-token: write
       packages: write
       security-events: write
-    secrets: inherit
-    strategy:
-      matrix:
-        base: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', inputs.image)) || fromJSON(needs.prepare.outputs.changed-bases) }}
-      fail-fast: false
-    with:
-      image: ${{ matrix.base }}
-      path: base
-      variant: devel
-      release: ${{ github.event_name == 'workflow_dispatch' && inputs.release || github.event_name == 'push' }}
-
-  # Build apps after base images complete
-  build-apps:
-    # Run even if build-bases was skipped (no base changes)
-    if: ${{ always() && !failure() && !cancelled() && (needs.prepare.outputs.changed-apps != '[]' || (github.event_name == 'workflow_dispatch' && inputs.type == 'apps')) }}
-    name: Build ${{ matrix.app }}
-    needs: ["prepare", "build-bases", "build-bases-devel"]
-    uses: ./.github/workflows/image-builder.yaml
-    permissions:
-      attestations: write
-      contents: write
-      id-token: write
-      packages: write
-      security-events: write
-    secrets: inherit
+    secrets:
+      BOT_APP_CLIENT_ID: ${{ secrets.BOT_APP_CLIENT_ID }}
+      BOT_APP_PRIVATE_KEY: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
     strategy:
       matrix:
         app: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', inputs.image)) || fromJSON(needs.prepare.outputs.changed-apps) }}
@@ -151,19 +62,23 @@ jobs:
       max-parallel: 4
     with:
       image: ${{ matrix.app }}
-      path: apps
       release: ${{ github.event_name == 'workflow_dispatch' && inputs.release || github.event_name == 'push' }}
 
   status:
-    if: ${{ always() }}
+    if: ${{ !cancelled() }}
     name: Build Success
-    needs: ["build-bases", "build-bases-devel", "build-apps"]
+    needs: ["build-apps"]
     runs-on: ubuntu-latest
+    permissions:
+      contents: none
     steps:
+      # cancelled counts as failed: !cancelled() above still runs this job when
+      # individual needs were cancelled but the run was not, and a required job
+      # that never reached a verdict must not clear the merge gate.
       - name: Any jobs failed?
-        if: ${{ contains(needs.*.result, 'failure') }}
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: exit 1
 
       - name: All jobs passed or skipped?
-        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        if: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
         run: echo "All jobs passed or skipped" && echo "${{ toJSON(needs.*.result) }}"
