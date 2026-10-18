@@ -6,9 +6,11 @@ on:
     # Build weekly on Sundays
     - cron: "0 4 * * 0"
 
+permissions:
+  contents: read
+
 env:
   TORCH_CUDA_ARCH_LIST: "12.0"
-  NVCC_FLAGS: "-allow-unsupported-compiler"
   UV_LINK_MODE: copy
 jobs:
   setup-environment:
@@ -20,105 +22,55 @@ jobs:
     steps:
       - id: config
         run: |
-          echo "python-version=3.12" >> $GITHUB_OUTPUT
-          echo "cuda-version=12.9.1" >> $GITHUB_OUTPUT
+          echo "python-version=3.12" >> "$GITHUB_OUTPUT"
+          echo "cuda-version=12.9.1" >> "$GITHUB_OUTPUT"
 
-  build-flash-attn:
-    name: Build flash-attn
+  build-sageattention:
+    name: Build SageAttention
     runs-on: containers-runner
     needs: setup-environment
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - name: Checkout flash-attn
+      - name: Checkout SageAttention
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: "Dao-AILab/flash-attention"
-          ref: "main"
+          repository: "thu-ml/SageAttention"
+          ref: "v2.2.0"
           fetch-depth: 1
-          submodules: recursive
-          path: "flash-attn"
+          path: "sageattention"
+          persist-credentials: false
 
       - name: Setup Runner
         uses: ./.github/actions/setup-build-cuda
         with:
           python-version: ${{ needs.setup-environment.outputs.python-version }}
-          working-directory: ./flash-attn
+          # Stable torch pinned to match the comfyui base image exactly, so the
+          # wheel's ABI and CUDA kernels load cleanly there
+          torch-version: "2.11.0"
+          torch-index: "https://download.pytorch.org/whl/cu128"
+          torch-companions: "torchvision==0.26.0 torchaudio==2.11.0"
 
-      - name: Build flash-attn wheel
+      - name: Build SageAttention wheel
         run: |
-          cd flash-attn
+          cd sageattention
           mkdir -p dist
-          echo "TORCH_CUDA_ARCH_LIST: $TORCH_CUDA_ARCH_LIST"
-          uv pip install setuptools wheel psutil ninja packaging
-          uv build --wheel --no-build-isolation --verbose -o dist
-        env:
-          FLASH_ATTENTION_FORCE_BUILD: true
-          FLASH_ATTN_CUDA_ARCHS: "120"
+          echo "TORCH_CUDA_ARCH_LIST: ${TORCH_CUDA_ARCH_LIST}"
+          python -c "import torch; print(f'torch {torch.__version__}, archs {torch.cuda.get_arch_list()}')"
+          python setup.py bdist_wheel -d dist
 
-      - name: Upload flash-attn wheel
+      - name: Upload SageAttention wheel
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: flash-attn-wheel
-          path: flash-attn/dist/*.whl
-
-  build-xformers:
-    name: Build xformers (with flash-attn dependency)
-    runs-on: containers-runner
-    needs: [setup-environment, build-flash-attn]
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Checkout xformers
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: "facebookresearch/xformers"
-          ref: "main"
-          fetch-depth: 1
-          submodules: recursive
-          path: "xformers"
-
-      - name: Setup Runner
-        uses: ./.github/actions/setup-build-cuda
-        with:
-          python-version: ${{ needs.setup-environment.outputs.python-version }}
-          working-directory: ./xformers
-
-      - name: Download flash-attn wheel
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: flash-attn-wheel
-          path: flash-attn-wheel/
-
-      - name: Install flash-attn dependency
-        run: |
-          FLASH_ATTN_WHEEL=$(find flash-attn-wheel -name "*.whl" | head -1)
-          echo "Installing flash-attn wheel: $FLASH_ATTN_WHEEL"
-          uv pip install "$FLASH_ATTN_WHEEL"
-
-          uv pip install ninja packaging wheel setuptools
-
-          # Verify installation
-          uv run python -c "import flash_attn; print(f'flash-attn version: {flash_attn.__version__}')"
-
-      - name: Build xformers wheel
-        run: |
-          cd xformers
-          mkdir -p dist
-          uv build --wheel --no-build-isolation --verbose -o dist
-
-      - name: Upload xformers wheel
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: xformers-wheel
-          path: xformers/dist/*.whl
+          name: sageattention-wheel
+          path: sageattention/dist/*.whl
 
   publish-container:
-    needs: [setup-environment, build-flash-attn, build-xformers]
+    needs: [setup-environment, build-sageattention]
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'
 

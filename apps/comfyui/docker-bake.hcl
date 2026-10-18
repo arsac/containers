@@ -14,7 +14,16 @@ variable "SOURCE" {
 }
 
 variable "BASE_IMAGE" {
-  default = "ghcr.io/arsac/cuda-ml"
+  # First-party PyTorch devel image (Python 3.12, torch 2.11.0, CUDA 12.8 with
+  # sm_120 Blackwell support). Pinned to the cu128 line deliberately: cu13x
+  # images need a >= 580 host driver - check `nvidia-smi` on the GPU hosts
+  # before moving up.
+  default = "mirror.gcr.io/pytorch/pytorch:2.11.0-cuda12.8-cudnn9-devel"
+}
+
+variable "UV_VERSION" {
+  // renovate: datasource=github-releases depName=astral-sh/uv
+  default = "0.13.1"
 }
 
 group "default" {
@@ -26,6 +35,7 @@ target "image" {
   args = {
     VERSION    = "${VERSION}"
     BASE_IMAGE = "${BASE_IMAGE}"
+    UV_VERSION = "${UV_VERSION}"
   }
   labels = {
     "org.opencontainers.image.source" = "${SOURCE}"

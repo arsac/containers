@@ -9,6 +9,18 @@ inputs:
     description: CUDA version to install
     required: false
     default: "12.9.1"
+  torch-version:
+    description: Torch version to pin (empty installs latest from torch-index)
+    required: false
+    default: ""
+  torch-index:
+    description: PyTorch wheel index to install from
+    required: false
+    default: "https://download.pytorch.org/whl/nightly/cu128"
+  torch-companions:
+    description: Pinned companion packages (e.g. "torchvision==0.26.0 torchaudio==2.11.0")
+    required: false
+    default: ""
   working-directory:
     description: Directory to run the action in
     required: false
@@ -72,20 +84,31 @@ runs:
 
     - name: Install Python ${{ inputs.python-version }}
       shell: bash
-      run: uv pip install --python=${{ inputs.python-version }} pip
+      env:
+        PYTHON_VERSION: ${{ inputs.python-version }}
+      run: uv pip install --python="${PYTHON_VERSION}" pip
 
     - name: Setup PyTorch environment
       shell: bash
       id: setup_pytorch
+      env:
+        TORCH_VERSION: ${{ inputs.torch-version }}
+        TORCH_INDEX: ${{ inputs.torch-index }}
+        TORCH_COMPANIONS: ${{ inputs.torch-companions }}
       run: |
         # Install PyTorch first (shared dependency)
         uv pip install packaging wheel setuptools ninja
-        uv pip install torch torchvision torchaudio \
-          --index-url https://download.pytorch.org/whl/nightly/cu128
+        if [[ -n "${TORCH_VERSION}" ]]; then
+          uv pip install "torch==${TORCH_VERSION}" ${TORCH_COMPANIONS} \
+            --index-url "${TORCH_INDEX}"
+        else
+          uv pip install torch torchvision torchaudio \
+            --index-url "${TORCH_INDEX}"
+        fi
 
         # Extract installed version of pytorch to github output
         PYTORCH_VERSION=$(uv run python -c "import torch; print(torch.__version__)")
-        echo "pytorch_version=$PYTORCH_VERSION" >> $GITHUB_OUTPUT
+        echo "pytorch_version=$PYTORCH_VERSION" >> "$GITHUB_OUTPUT"
         echo "PyTorch version: $PYTORCH_VERSION"
 
     - shell: bash
