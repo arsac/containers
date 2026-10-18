@@ -4,7 +4,7 @@ ARG SOURCE_IMAGE="nvcr.io/nvidia/k8s-dra-driver-gpu"
 # =============================================================================
 # Builder stage: clone upstream source, apply Talos support patch, build binaries
 # =============================================================================
-FROM mirror.gcr.io/library/golang:1.26.1-bookworm AS builder
+FROM mirror.gcr.io/library/golang:1.27.2-bookworm AS builder
 
 ARG VERSION
 
