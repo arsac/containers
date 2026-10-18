@@ -23,21 +23,3 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Check For Existing Application
-        uses: ./.github/actions/app-exists
-        id: app-exists
-        with:
-          app: ${{ inputs.image }}
-
-      - name: Get Application Options
-        id: app-options
-        uses: ./.github/actions/app-options
-        with:
-          app: ${{ inputs.image }}
-
-      - name: Get Application Versions
-        uses: ./.github/actions/app-versions
-        id: app-versions
-        with:
-          upstream-version: ${{ steps.app-options.outputs.version }}
-
