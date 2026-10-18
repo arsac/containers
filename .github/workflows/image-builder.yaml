@@ -23,6 +23,17 @@ on:
       DISCORD_WEBHOOK:
         description: Discord webhook for build failure notifications
         required: false
+  # temp: direct dispatch probe to bisect the release.yaml startup_failure
+  workflow_dispatch:
+    inputs:
+      image:
+        type: string
+        description: Image Name
+        required: true
+      release:
+        type: boolean
+        description: Release
+        required: true
 
 concurrency:
   group: build-${{ inputs.image }}-${{ github.ref }}
