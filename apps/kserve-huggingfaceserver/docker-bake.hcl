@@ -10,7 +10,7 @@ variable "APP" {
 # actually installed in that image.
 variable "VERSION" {
   // renovate: datasource=pypi depName=vllm
-  default = "0.22.1"
+  default = "0.32.0"
 }
 
 # Pinned upstream kserve commit (currently the v0.19.0 stable tag). The
