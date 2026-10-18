@@ -1,6 +1,6 @@
 ARG VERSION=main
 
-FROM mirror.gcr.io/nvidia/cuda:12.8.0-devel-ubuntu24.04
+FROM mirror.gcr.io/nvidia/cuda:12.9.2-devel-ubuntu24.04
 
 ARG VERSION
 
