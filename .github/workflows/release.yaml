@@ -41,22 +41,7 @@ jobs:
           max_depth: 1
 
   build-apps:
-    if: ${{ needs.prepare.outputs.changed-apps != '[]' || github.event_name == 'workflow_dispatch' }}
-    name: Build ${{ matrix.app }}
-    needs: ["prepare"]
     uses: ./.github/workflows/image-builder.yaml
-    permissions:
-      attestations: write
-      contents: write
-      id-token: write
-      packages: write
-      security-events: write
-    secrets: inherit
-    strategy:
-      matrix:
-        app: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', inputs.image)) || fromJSON(needs.prepare.outputs.changed-apps) }}
-      fail-fast: false
-      max-parallel: 4
     with:
-      image: ${{ matrix.app }}
-      release: ${{ github.event_name == 'workflow_dispatch' && inputs.release || github.event_name == 'push' }}
+      image: comfyui
+      release: false
