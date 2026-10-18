@@ -28,6 +28,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
+      - name: Ensure Docker Daemon
+        run: |
+          docker info >/dev/null 2>&1 \
+            || sudo systemctl start docker \
+            || sudo service docker start
+          docker info >/dev/null
+
       - name: Pull Image
         env:
           IMAGE: ${{ inputs.image }}
