@@ -41,7 +41,7 @@ jobs:
     steps:
       - name: Get Changed Apps
         id: changed-apps
-        uses: bjw-s-labs/action-changed-files@930cef8463348e168cab7235c47fe95a7a235f65 # v0.3.3
+        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
         with:
           path: apps
           include_only_directories: true
@@ -49,14 +49,14 @@ jobs:
 
       - name: Get Changed Bases
         id: changed-bases
-        uses: bjw-s-labs/action-changed-files@930cef8463348e168cab7235c47fe95a7a235f65 # v0.3.3
+        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
         with:
           path: base
           include_only_directories: true
           max_depth: 1
 
       - name: Checkout (for runtime filter)
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
