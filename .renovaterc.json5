@@ -12,34 +12,20 @@
       datasourceTemplate: "{{#if datasource}}{{{datasource}}}{{else}}github-releases{{/if}}",
       versioningTemplate: "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}",
     },
+    {
+      // Upstreams that ship no tags (kserve source, mealie-mcp-server, subgen,
+      // kagent) are pinned to a commit SHA. A SHA is not a version, so Renovate
+      // can only track them as a digest: the annotation names the branch to watch
+      // and the pinned SHA is rewritten when that branch head moves.
+      customType: "regex",
+      description: "Process commit-SHA annotations in Docker Bake",
+      managerFilePatterns: ["/(^|/)docker-bake\\.hcl$/"],
+      matchStrings: [
+        "default\\s*=\\s*\"(?<currentDigest>[0-9a-f]{40})\" // renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: packageName=(?<packageName>\\S+))? currentValue=(?<currentValue>\\S+)",
+      ],
+      datasourceTemplate: "{{{datasource}}}",
+    },
   ],
-  customDatasources: {
-    qbittorrent: {
-      defaultRegistryUrlTemplate: "https://github.com/userdocs/qbittorrent-nox-static/releases/latest/download/dependency-version.json",
-      format: "json",
-      transformTemplates: ['{"releases":[{"version": qbittorrent}]}'],
-    },
-    "servarr-develop": {
-      defaultRegistryUrlTemplate: "https://{{packageName}}.servarr.com/v1/update/develop/changes?os=linux&runtime=netcore",
-      format: "json",
-      transformTemplates: ['{"releases":[{"version": $[0].version}]}'],
-    },
-    "servarr-nightly": {
-      defaultRegistryUrlTemplate: "https://{{packageName}}.servarr.com/v1/update/nightly/changes?os=linux&runtime=netcore",
-      format: "json",
-      transformTemplates: ['{"releases":[{"version": $[0].version}]}'],
-    },
-    "sonarr-develop": {
-      defaultRegistryUrlTemplate: "https://services.sonarr.tv/v1/update/develop/changes?os=linux&runtime=netcore&version=4.0",
-      format: "json",
-      transformTemplates: ['{"releases":[{"version": $[0].version}]}'],
-    },
-    plex: {
-      defaultRegistryUrlTemplate: "https://plex.tv/api/downloads/5.json",
-      format: "json",
-      transformTemplates: ['{"releases":[{"version": computer.Linux.version}]}'],
-    },
-  },
   packageRules: [
     {
       description: ["Release Rules for Application Updates"],
@@ -159,6 +145,29 @@
       automergeType: "pr",
       minimumReleaseAge: "3 days",
       ignoreTests: false,
+    },
+    {
+      description: ["Commit pins watch exactly the branch named in the annotation - git-refs ranks every ref, so without this a fork jumps release lines"],
+      matchDatasources: ["git-refs"],
+      matchFileNames: ["**/docker-bake.hcl"],
+      matchDepNames: ["McCloudS/subgen", "kagent-dev/kagent", "rldiao/mealie-mcp-server", "ostris/ai-toolkit"],
+      allowedVersions: "/^main$/",
+    },
+    {
+      // The fork is patched against v0.19.0; an unfiltered digest lookup offered
+      // v0.21.0, which no one chose.
+      description: ["kserve's pin tracks its own release branch only"],
+      matchDatasources: ["git-refs"],
+      matchFileNames: ["**/docker-bake.hcl"],
+      matchDepNames: ["kserve/kserve"],
+      allowedVersions: "/^release-0\\.19$/",
+    },
+    {
+      description: ["Commit pins have no release gate, so a human reads what moved before it ships"],
+      matchDatasources: ["git-refs"],
+      matchFileNames: ["**/docker-bake.hcl"],
+      matchUpdateTypes: ["digest"],
+      automerge: false,
     },
   ],
 }

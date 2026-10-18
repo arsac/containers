@@ -5,7 +5,7 @@ variable "APP" {
 }
 
 variable "VERSION" {
-  default = "1d959b16cc99683824aa849744a95d8ac6c8952a"
+  default = "1d959b16cc99683824aa849744a95d8ac6c8952a" // renovate: datasource=git-refs depName=McCloudS/subgen packageName=https://github.com/McCloudS/subgen currentValue=main
 }
 
 variable "SOURCE" {

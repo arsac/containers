@@ -10,13 +10,13 @@ variable "VERSION" {
   default = "1.0.0-alpha4"
 }
 
-# Pinned upstream kagent commit (the v1.0.0-alpha4 tag). Deliberately not
-# Renovate-tracked: bumping it means checking that patches/ still applies (git
-# apply fails loudly on drift) and, more importantly, whether kagent has fixed
-# the credential grammar upstream — in which case this image should be deleted
-# rather than rebase.
+# Pinned upstream kagent commit (the v1.0.0-alpha4 tag). Renovate proposes the
+# branch head but never merges it: a bump means checking that patches/ still
+# applies (git apply fails loudly on drift) and, more importantly, whether
+# kagent has fixed the credential grammar upstream - in which case this image
+# should be deleted rather than rebase.
 variable "KAGENT_REF" {
-  default = "8be872b231d09f762435dc8296556c0ffef6ce6d"
+  default = "8be872b231d09f762435dc8296556c0ffef6ce6d" // renovate: datasource=git-refs depName=kagent-dev/kagent packageName=https://github.com/kagent-dev/kagent currentValue=main
 }
 
 # Upstream image whose final stage is reused. Keep this in step with the digest

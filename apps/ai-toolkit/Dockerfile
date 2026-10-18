@@ -48,8 +48,12 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 RUN rm -f /usr/lib/python*/EXTERNALLY-MANAGED
 
 WORKDIR /
-# Clone ai-toolkit
-RUN git clone --depth 1 --branch ${VERSION} --quiet https://github.com/ostris/ai-toolkit.git app
+# Upstream publishes no tags or releases, so VERSION is a commit on main.
+# --branch will not take a SHA, hence init/fetch/checkout.
+RUN git init -q app \
+ && git -C app remote add origin https://github.com/ostris/ai-toolkit.git \
+ && git -C app fetch -q --depth 1 origin "${VERSION}" \
+ && git -C app checkout -q FETCH_HEAD
 
 # Copy python wheels from the shared container
 COPY --from=ghcr.io/arsac/containers/python-wheels:latest /wheels /tmp/wheels
