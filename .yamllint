@@ -12,3 +12,7 @@ rules:
   # ("uses: ... # v7.0.1"), matching the canonical upstream style.
   comments:
     min-spaces-from-content: 1
+  # GitHub Actions uses the YAML 1.1 "on" key for triggers; it is not a
+  # boolean and must not be flagged
+  truthy:
+    check-keys: false
