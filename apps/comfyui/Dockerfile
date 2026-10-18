@@ -87,9 +87,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install dist/*.whl && \
     rm -rf /tmp/diso
 
-# Build-time contract tests: verify the stack is pinned, CUDA-built for
-# Blackwell (sm_120), and sageattention is importable. CPU-only - no GPU on
-# the build runner.
+# Build-time contract tests: verify the stack is pinned, CUDA-built, and
+# sageattention is importable. Driver-free on purpose - build runners have no
+# GPU, and torch.cuda.get_arch_list() gates on driver availability; the sm_120
+# kernel assertion runs in the gpu-smoke workflow on real hardware.
 RUN python - <<'PY'
 import torch
 import torchvision
@@ -97,12 +98,11 @@ import torchaudio
 import sageattention
 
 assert torch.__version__.startswith("2.11.0"), torch.__version__
-assert torch.backends.cuda.is_built(), "torch is not CUDA-built"
-archs = torch.cuda.get_arch_list()
-assert "sm_120" in archs, f"sm_120 missing from torch arch list: {archs}"
+assert torch.version.cuda is not None, "torch is not CUDA-built"
+assert torch.version.cuda.startswith("12.8"), torch.version.cuda
 x = torch.rand(4, 4)
 assert (x @ x.t()).shape == (4, 4)
-print(f"contract OK: torch {torch.__version__}, archs {archs}")
+print(f"contract OK: torch {torch.__version__}+cu{torch.version.cuda}, sageattention {sageattention.__version__}")
 PY
 
 # Generate the constraint file the runtime venv uses so custom nodes cannot
