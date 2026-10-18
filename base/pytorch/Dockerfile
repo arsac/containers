@@ -11,7 +11,7 @@
 
 ARG CUDA_VERSION="13.0.3"
 ARG CUDA_DISTRO="ubuntu24.04"
-ARG UV_VERSION="0.11.8"
+ARG UV_VERSION="0.13.1"
 
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 
