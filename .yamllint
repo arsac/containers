@@ -1,0 +1,14 @@
+---
+extends: default
+
+rules:
+  # No hard line-length cap: workflow YAML legitimately carries long template
+  # expressions (bake set lines, artifact names with variant suffixes, jq
+  # one-liners) that exist verbatim in the canonical home-operations/containers
+  # repo. A cap would force reflowing them away from the canonical shape.
+  # Correctness of these lines is enforced by actionlint and zizmor instead.
+  line-length: disable
+  # Action pins use a single space before their version comment
+  # ("uses: ... # v7.0.1"), matching the canonical upstream style.
+  comments:
+    min-spaces-from-content: 1

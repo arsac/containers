@@ -39,6 +39,8 @@ jobs:
         with:
           client-id: ${{ secrets.BOT_APP_CLIENT_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
 
       # autodiscover stays off: the App is installed on more than this repo.
       - name: Self-hosted Renovate

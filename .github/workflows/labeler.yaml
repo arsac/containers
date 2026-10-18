@@ -28,6 +28,8 @@ jobs:
         with:
           client-id: ${{ secrets.BOT_APP_CLIENT_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          permission-issues: write
+          permission-pull-requests: write
 
       - name: Install Task
         uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0

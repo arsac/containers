@@ -17,19 +17,18 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Setup Actions Script Path
-      shell: bash
-      run: |
-        echo "${{ github.action_path }}" >> $GITHUB_PATH
-
     - name: Setup Testing Tools
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
+        APP: ${{ inputs.app }}
       run: |
-        setup.sh "${{ inputs.app }}"
+        "${GITHUB_ACTION_PATH}/setup.sh" "${APP}"
 
     - name: Run Tests
       shell: bash
+      env:
+        APP: ${{ inputs.app }}
+        IMAGE: ${{ inputs.image }}
       run: |
-        run.sh "${{ inputs.app }}" "${{ inputs.image }}"
+        "${GITHUB_ACTION_PATH}/run.sh" "${APP}" "${IMAGE}"
