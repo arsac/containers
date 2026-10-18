@@ -18,7 +18,7 @@ variable "GNHF_VERSION" {
 # OpenAI-compatible base URL, which is what points it at a self-hosted model.
 variable "OPENCODE_VERSION" {
   // renovate: datasource=npm depName=opencode-ai
-  default = "1.18.23"
+  default = "1.19.3"
 }
 
 variable "NO_MISTAKES_VERSION" {
