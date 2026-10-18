@@ -45,26 +45,3 @@ jobs:
         with:
           upstream-version: ${{ steps.app-options.outputs.version }}
 
-      - name: Build Application Metadata
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
-        id: meta
-        env:
-          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
-        with:
-          flavor: latest=false
-          images: |
-            ghcr.io/${{ github.repository_owner }}/${{ inputs.image }}
-          tags: |
-            type=semver,pattern={{version}},value=${{ steps.app-versions.outputs.semantic }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ steps.app-versions.outputs.semantic }},enable=${{ steps.app-versions.outputs.is-valid-semver }}
-            type=semver,pattern={{major}},value=${{ steps.app-versions.outputs.semantic }},enable=${{ steps.app-versions.outputs.is-valid-semver }}
-            type=raw,value=${{ steps.app-versions.outputs.raw }},enable=${{ steps.app-versions.outputs.is-valid-semver }}
-            type=raw,value=rolling
-
-      - name: Upload Bake Metadata
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: ${{ inputs.image }}-bake-metadata
-          path: ${{ steps.meta.outputs.bake-file }}
-          if-no-files-found: error
-          retention-days: 1
