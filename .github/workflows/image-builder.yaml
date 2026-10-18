@@ -17,9 +17,6 @@ concurrency:
   group: build-${{ inputs.image }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-
 jobs:
   plan:
     name: Plan
