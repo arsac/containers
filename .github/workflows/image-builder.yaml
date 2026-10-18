@@ -13,16 +13,6 @@ on:
         type: boolean
         description: Release
         required: true
-    secrets:
-      BOT_APP_CLIENT_ID:
-        description: GitHub App client ID for release announcements
-        required: false
-      BOT_APP_PRIVATE_KEY:
-        description: GitHub App private key for release announcements
-        required: false
-      DISCORD_WEBHOOK:
-        description: Discord webhook for build failure notifications
-        required: false
   # temp: direct dispatch probe to bisect the release.yaml startup_failure
   workflow_dispatch:
     inputs:
