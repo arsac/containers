@@ -42,7 +42,7 @@ jobs:
       - name: Get changed apps
         id: changed
         if: ${{ github.event.inputs.app == '' }}
-        uses: bjw-s-labs/action-changed-files@930cef8463348e168cab7235c47fe95a7a235f65 # v0.3.3
+        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
         with:
           path: apps
           include_only_directories: true
@@ -77,10 +77,10 @@ jobs:
       matrix:
         app: ${{ fromJSON(needs.detect.outputs.apps) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Get CalVer tag
         id: calver
@@ -90,13 +90,13 @@ jobs:
         id: reg
         run: echo "host=${GITHUB_SERVER_URL#*://}" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ${{ steps.reg.outputs.host }}
           username: ${{ github.actor }}
           password: ${{ secrets.PACKAGE_TOKEN }}
 
-      - uses: docker/bake-action@v6
+      - uses: docker/bake-action@59cb1203cd42bcefd40a1b6d73b589e48c86040e # v7.5.0
         id: bake
         with:
           workdir: apps/${{ matrix.app }}
