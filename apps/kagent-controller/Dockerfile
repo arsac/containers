@@ -11,7 +11,7 @@
 # Retire this image when kagent ships the same fix upstream; BASE_IMAGE records
 # the upstream build this was rebuilt against.
 ARG KAGENT_REF=8be872b231d09f762435dc8296556c0ffef6ce6d
-ARG BASE_IMAGE=ghcr.io/kagent-dev/kagent/controller@sha256:99bb9ae31aa799d7dcfcf01562f706af6681c9f968529aa3cd83566a7516ef0d
+ARG BASE_IMAGE=ghcr.io/kagent-dev/kagent/controller@sha256:337b419a07d644e530b4306e6e30437ff373a9268b13c2bc48731e9c139f520d
 
 #################### SOURCE (pinned upstream kagent + downstream patches) ####################
 FROM alpine/git AS src
