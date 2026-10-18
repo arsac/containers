@@ -28,7 +28,7 @@ variable "NO_MISTAKES_VERSION" {
 
 variable "TREEHOUSE_VERSION" {
   // renovate: datasource=github-releases depName=kunchenguid/treehouse
-  default = "v2.3.0"
+  default = "v3.1.4"
 }
 
 variable "SOURCE" {
