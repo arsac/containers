@@ -16,7 +16,7 @@ ARG GNHF_VERSION="0.1.45"
 # renovate: datasource=npm depName=opencode-ai
 ARG OPENCODE_VERSION="1.19.3"
 # renovate: datasource=github-releases depName=kunchenguid/no-mistakes
-ARG NO_MISTAKES_VERSION="v1.57.0"
+ARG NO_MISTAKES_VERSION="v1.84.0"
 # renovate: datasource=github-releases depName=kunchenguid/treehouse
 ARG TREEHOUSE_VERSION="v3.1.4"
 
