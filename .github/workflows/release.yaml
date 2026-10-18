@@ -69,7 +69,8 @@ jobs:
     name: Build Success
     needs: ["build-apps"]
     runs-on: ubuntu-latest
-    permissions: {}
+    permissions:
+      contents: none
     steps:
       # cancelled counts as failed: !cancelled() above still runs this job when
       # individual needs were cancelled but the run was not, and a required job
