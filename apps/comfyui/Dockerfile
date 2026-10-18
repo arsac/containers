@@ -102,7 +102,8 @@ assert torch.version.cuda is not None, "torch is not CUDA-built"
 assert torch.version.cuda.startswith("12.8"), torch.version.cuda
 x = torch.rand(4, 4)
 assert (x @ x.t()).shape == (4, 4)
-print(f"contract OK: torch {torch.__version__}+cu{torch.version.cuda}, sageattention {sageattention.__version__}")
+from importlib.metadata import version
+print(f"contract OK: torch {torch.__version__}+cu{torch.version.cuda}, sageattention {version('sageattention')}")
 PY
 
 # Generate the constraint file the runtime venv uses so custom nodes cannot

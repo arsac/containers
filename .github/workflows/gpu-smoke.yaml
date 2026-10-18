@@ -51,7 +51,8 @@ jobs:
           x = torch.rand(1024, 1024, device="cuda")
           y = x @ x.t()
           assert y.sum().isfinite(), "matmul produced non-finite values"
-          print("sageattention:", sageattention.__version__)
+          from importlib.metadata import version
+          print("sageattention:", version("sageattention"))
           print("GPU assertions OK")
           PY
 
