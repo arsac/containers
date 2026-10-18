@@ -45,18 +45,10 @@ runs:
     #   with:
     #     swap-size-gb: 10
 
-    - name: Cache CUDA installer
-      id: cache-cuda
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      with:
-        path: cuda.run
-        key: cuda-${{ inputs.cuda-version }}-${{ runner.os }}-${{ runner.arch }}
-        restore-keys: |
-          cuda-${{ inputs.cuda-version }}-${{ runner.os }}-
-
     - name: Download CUDA installer
       shell: bash
-      if: steps.cache-cuda.outputs.cache-hit != 'true'
+      # No cache: saving the ~4.7GB installer back from this runner is slower
+      # than the CDN download and has hung runs in post-steps
       run: |
         wget https://developer.download.nvidia.com/compute/cuda/12.9.1/local_installers/cuda_12.9.1_575.57.08_linux.run -O cuda.run
 
