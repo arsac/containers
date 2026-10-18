@@ -1,7 +1,7 @@
 ARG VERSION="v1.9.1"
 ARG CUDA_VERSION="12.8.0"
 
-FROM mirror.gcr.io/swaggerapi/swagger-ui:v5.9.1 AS swagger-ui
+FROM mirror.gcr.io/swaggerapi/swagger-ui:v5.33.3 AS swagger-ui
 
 FROM mirror.gcr.io/nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu24.04
 
