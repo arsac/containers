@@ -9,7 +9,7 @@
 # plain OpenAI-compatible base URL with no vendor sign-in to work around, which
 # is what lets this point at a self-hosted model.
 
-FROM mirror.gcr.io/library/node:22-slim
+FROM mirror.gcr.io/library/node:24-slim
 
 # renovate: datasource=npm depName=gnhf
 ARG GNHF_VERSION="0.1.45"
