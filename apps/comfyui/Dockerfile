@@ -6,6 +6,10 @@ ARG VERSION="v0.41.0"
 ARG BASE_IMAGE="mirror.gcr.io/pytorch/pytorch:2.11.0-cuda12.8-cudnn9-devel"
 ARG UV_VERSION="0.13.1"
 
+# uv comes from its own image; BuildKit cannot expand ARGs in COPY --from,
+# so the image must be referenced from a named stage
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
+
 # =============================================================================
 # Builder stage - install ComfyUI and its requirements
 # =============================================================================
@@ -32,7 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential ninja-build git curl ca-certificates && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:${UV_VERSION} /uv /usr/local/bin/uv
+COPY --from=uv /uv /usr/local/bin/uv
 
 # Ensure the torch companion stack matches the base torch exactly, then freeze
 # pins so nothing downstream upgrades the core stack
@@ -127,7 +131,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl ca-certificates tini gcc && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:${UV_VERSION} /uv /usr/local/bin/uv
+COPY --from=uv /uv /usr/local/bin/uv
 
 # Copy ComfyUI-specific Python packages
 COPY --from=builder /usr/local/lib/python3.12/ /usr/local/lib/python3.12/
