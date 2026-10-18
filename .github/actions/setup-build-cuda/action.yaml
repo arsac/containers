@@ -64,7 +64,11 @@ runs:
       shell: bash
       run: |
         sudo apt-get update
-        sudo apt-get install -y --no-install-recommends build-essential wget git
+        # python dev headers: the uv-managed interpreter does not expose
+        # Python.h on the compiler include path, which torch extension
+        # builds require. python-version is effectively pinned to 3.12:
+        # python3.12-dev is the only dev package this runner ships.
+        sudo apt-get install -y --no-install-recommends build-essential wget git python3.12-dev
 
         # Use cached installer
         chmod +x cuda.run
@@ -74,6 +78,7 @@ runs:
         echo "/usr/local/cuda/bin" >> $GITHUB_PATH
         echo "NVCC_FLAGS=-allow-unsupported-compiler" >> $GITHUB_ENV
         echo "LD_LIBRARY_PATH=/usr/local/cuda/lib64" >> $GITHUB_ENV
+        echo "CPATH=/usr/include/python3.12" >> ${GITHUB_ENV}
 
     - name: Install uv
       uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
