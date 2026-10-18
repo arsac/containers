@@ -13,10 +13,6 @@ on:
         type: boolean
         description: Release
         required: true
-concurrency:
-  group: build-${{ inputs.image }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   plan:
     name: Plan
