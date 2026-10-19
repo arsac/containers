@@ -9,7 +9,7 @@
  */
 import { createServer as createHttpServer } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { createClient, type HonchoConfig } from "./config.js";
+import { honchoClients, identityHeaders, type HonchoConfig } from "./config.js";
 import { createServer } from "./server.js";
 
 // Fail closed: refuse to start on a missing required var rather than silently
@@ -29,17 +29,17 @@ const config: HonchoConfig = {
   apiKey: process.env.HONCHO_API_KEY ?? "",
   baseUrl,
   workspaceId,
-  userName: process.env.HONCHO_USER_NAME ?? "User",
-  assistantName: process.env.HONCHO_ASSISTANT_NAME ?? "Assistant",
 };
 const port = Number(process.env.PORT ?? "8080");
 
-// One shared Honcho client — a stateless fetch-based HTTP client, safe to use
-// across concurrent requests. Startup is NOT gated on Honcho reachability
-// (canonical cloud-native: no dependency-ordering, no crash loop on a transient
-// backing-service outage); a Honcho outage surfaces as tool-call errors and
-// self-recovers. Config errors still fail fast above.
-const honcho = createClient(config);
+// One shared client factory - a stateless fetch-based HTTP client, safe to
+// use across concurrent requests. Startup is NOT gated on Honcho reachability
+// (canonical cloud-native: no dependency-ordering, no crash loop on a
+// transient backing-service outage); a Honcho outage surfaces as tool-call
+// errors and self-recovers. Config errors still fail fast above.
+// v3.3.0 moved to a client factory (clientFor/unscoped) for multi-workspace
+// support; HONCHO_USER_NAME/HONCHO_ASSISTANT_NAME were dropped upstream.
+const { clientFor, unscoped } = honchoClients(config, identityHeaders());
 
 const httpServer = createHttpServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/healthz") {
@@ -61,7 +61,7 @@ const httpServer = createHttpServer(async (req, res) => {
   // concurrent clients (no shared session state, no request-id collisions).
   // The transport reads/validates the request body itself and, with
   // enableJsonResponse, replies with a single JSON response (no SSE).
-  const server = createServer({ honcho, config });
+  const server = createServer({ config, clientFor, unscoped });
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
