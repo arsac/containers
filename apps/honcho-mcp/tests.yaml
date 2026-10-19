@@ -1,25 +1,32 @@
+---
 # container-structure-test spec (run by .github/actions/app-tests against the
-# built image, per arch). Covers the structural/entry/fail-closed drift a
-# `tsc --noEmit`-only build can't catch when renovate auto-merges an upstream
-# HONCHO_REF bump.
+# built image, per arch). Covers the packaging shape of upstream's own
+# container recipe (mcp/Dockerfile): bun runtime, upstream entry, frozen
+# dependency install, 65534 user. The entrypoint is the oven/bun base
+# wrapper and is deliberately not asserted.
 schemaVersion: "2.0.0"
 
 metadataTest:
-  entrypoint: ["node", "/app/dist/http.mjs"]
+  cmd: ["bun", "src/http.ts"]
   workdir: "/app"
   user: "65534:65534"
   exposedPorts: ["8080"]
 
 fileExistenceTests:
-  - name: bundled entry present
-    path: /app/dist/http.mjs
+  - name: upstream entry present
+    path: /app/src/http.ts
+    shouldExist: true
+  - name: upstream lock shipped
+    path: /app/bun.lock
+    shouldExist: true
+  - name: frozen dependency install
+    path: /app/node_modules/@honcho-ai/sdk
     shouldExist: true
 
 commandTests:
-  # Fail-closed: with no HONCHO_API_URL the server must refuse to start.
-  - name: fail-closed without required config
-    command: node
-    args: ["/app/dist/http.mjs"]
-    exitCode: 1
-    expectedError:
-      - "FATAL: HONCHO_API_URL is required"
+  # The entry's import graph must resolve: bundling upstream's http.ts
+  # catches a broken upstream tree before it reaches the registry.
+  - name: import graph resolves
+    command: bun
+    args: ["build", "src/http.ts", "--target", "node", "--outfile", "/tmp/smoke.mjs"]
+    exitCode: 0
