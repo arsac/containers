@@ -12,7 +12,7 @@
 FROM mirror.gcr.io/library/node:24-slim
 
 # renovate: datasource=npm depName=gnhf
-ARG GNHF_VERSION="0.1.51"
+ARG VERSION="0.1.51"
 # renovate: datasource=npm depName=opencode-ai
 ARG OPENCODE_VERSION="1.19.3"
 # renovate: datasource=github-releases depName=kunchenguid/no-mistakes
@@ -30,7 +30,7 @@ RUN apt-get update \
 
 # acpx (the ACP runtime) is vendored into gnhf's dist/cli.mjs bundle rather
 # than shipped as a dependency, so it is present without being on PATH.
-RUN npm install -g "gnhf@${GNHF_VERSION}" "opencode-ai@${OPENCODE_VERSION}" \
+RUN npm install -g "gnhf@${VERSION}" "opencode-ai@${OPENCODE_VERSION}" \
  && npm cache clean --force
 
 # Static Go binaries, published per-arch. No Go toolchain needed, so these stay

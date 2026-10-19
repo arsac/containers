@@ -4,12 +4,7 @@ variable "APP" {
   default = "gnhf"
 }
 
-# Tracks the gnhf release this image wraps.
 variable "VERSION" {
-  default = "0.1.45"
-}
-
-variable "GNHF_VERSION" {
   // renovate: datasource=npm depName=gnhf
   default = "0.1.51"
 }
@@ -52,14 +47,14 @@ group "default" {
 target "image" {
   inherits = ["docker-metadata-action"]
   args = {
-    GNHF_VERSION        = "${GNHF_VERSION}"
+    VERSION             = "${VERSION}"
     OPENCODE_VERSION    = "${OPENCODE_VERSION}"
     NO_MISTAKES_VERSION = "${NO_MISTAKES_VERSION}"
     TREEHOUSE_VERSION   = "${TREEHOUSE_VERSION}"
   }
   labels = {
     "org.opencontainers.image.source"   = "${SOURCE}"
-    "org.opencontainers.image.revision" = "${GNHF_VERSION}"
+    "org.opencontainers.image.revision" = "${VERSION}"
   }
 }
 

@@ -5,7 +5,7 @@
 FROM --platform=$BUILDPLATFORM mirror.gcr.io/oven/bun:1.2-slim AS build
 
 # Pinned upstream Honcho release tag (renovate-annotated in docker-bake.hcl).
-ARG HONCHO_REF="v3.3.0"
+ARG VERSION="v3.3.0"
 
 WORKDIR /app
 
@@ -15,8 +15,8 @@ WORKDIR /app
 # regeneration. Integrity here is HTTPS + the pinned release tag (the same
 # approach every other app in this repo uses). Remote tars are not auto-extracted,
 # so extract mcp/ ourselves (tarball root honcho-<version>/, target .../mcp).
-ADD https://github.com/plastic-labs/honcho/archive/refs/tags/${HONCHO_REF}.tar.gz /tmp/honcho.tgz
-RUN tar -xz --strip-components=2 -f /tmp/honcho.tgz "honcho-${HONCHO_REF#v}/mcp" \
+ADD https://github.com/plastic-labs/honcho/archive/refs/tags/${VERSION}.tar.gz /tmp/honcho.tgz
+RUN tar -xz --strip-components=2 -f /tmp/honcho.tgz "honcho-${VERSION#v}/mcp" \
  && rm /tmp/honcho.tgz src/index.ts
 
 # Overlay our authored files over upstream (entry + our manifest/lock/tsconfig).

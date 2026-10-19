@@ -4,13 +4,9 @@ variable "APP" {
   default = "honcho-mcp"
 }
 
-# Image version → published tags. Tracks the Honcho release this image wraps.
+# Image version → published tags; the Dockerfile fetches this tag's mcp/
+# (v-prefix stripped for the tarball path).
 variable "VERSION" {
-  default = "3.0.11"
-}
-
-# Pinned upstream Honcho release tag. The Dockerfile fetches this ref's mcp/.
-variable "HONCHO_REF" {
   // renovate: datasource=github-tags depName=plastic-labs/honcho
   default = "v3.3.0"
 }
@@ -36,11 +32,11 @@ group "default" {
 target "image" {
   inherits = ["docker-metadata-action"]
   args = {
-    HONCHO_REF = "${HONCHO_REF}"
+    VERSION = "${VERSION}"
   }
   labels = {
     "org.opencontainers.image.source"   = "${SOURCE}"
-    "org.opencontainers.image.revision" = "${HONCHO_REF}"
+    "org.opencontainers.image.revision" = "${VERSION}"
   }
 }
 
