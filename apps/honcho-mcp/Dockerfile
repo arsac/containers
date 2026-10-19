@@ -5,7 +5,7 @@
 FROM --platform=$BUILDPLATFORM mirror.gcr.io/oven/bun:1.2-slim AS build
 
 # Pinned upstream Honcho release tag (renovate-annotated in docker-bake.hcl).
-ARG HONCHO_REF="v3.0.11"
+ARG HONCHO_REF="v3.3.0"
 
 WORKDIR /app
 
