@@ -1,40 +1,33 @@
 # syntax=docker/dockerfile:1
 
-# Build stage runs natively on the build host for every target platform: the
-# output is an arch-independent JS bundle, so nothing here runs under QEMU.
-FROM --platform=$BUILDPLATFORM mirror.gcr.io/oven/bun:1.2-slim AS build
-
-# Pinned upstream Honcho release tag (renovate-annotated in docker-bake.hcl).
+# Mirror of upstream's mcp/Dockerfile (plastic-labs/honcho): the entry, lock
+# and config ship in the tarball - no authored code in this repo. House
+# packaging on top: pinned base, source fetched at the renovate-tracked tag,
+# 65534 runtime user, multi-arch via the bake file.
 ARG VERSION="v3.3.0"
 
+FROM mirror.gcr.io/oven/bun:1.2.23
+
+# global-scope ARGs are not visible inside stages without re-declaration
+ARG VERSION
+
 WORKDIR /app
 
-# Fetch the upstream monorepo tarball at the pinned tag. No sha256 pin: GitHub's
-# on-the-fly archive tarballs are NOT byte-stable — the same tag/commit yields
-# different bytes over time, so a pinned checksum breaks the build on
-# regeneration. Integrity here is HTTPS + the pinned release tag (the same
-# approach every other app in this repo uses). Remote tars are not auto-extracted,
-# so extract mcp/ ourselves (tarball root honcho-<version>/, target .../mcp).
+# Fetch the monorepo tarball at the pinned tag and extract the mcp workspace
 ADD https://github.com/plastic-labs/honcho/archive/refs/tags/${VERSION}.tar.gz /tmp/honcho.tgz
 RUN tar -xz --strip-components=2 -f /tmp/honcho.tgz "honcho-${VERSION#v}/mcp" \
- && rm /tmp/honcho.tgz src/index.ts
+ && rm /tmp/honcho.tgz
 
-# Overlay our authored files over upstream (entry + our manifest/lock/tsconfig).
-COPY package.json bun.lock tsconfig.json ./
-COPY src/http.ts ./src/http.ts
+# Install as root (world-readable node_modules); the server is stateless and
+# writes nothing, so the 65534 runtime user only needs read access
+RUN bun install --frozen-lockfile --production
 
-# Reproducible install → type-check gate (fails on upstream signature drift) →
-# bundle to a single ESM file (.mjs so Node runs it as ESM: top-level await).
-RUN bun install --frozen-lockfile \
- && bunx tsc --noEmit \
- && bun build src/http.ts --target node --outfile dist/http.mjs
+# PORT default matches the previously published image; override per deployment
+ENV PORT=8080 \
+    HOST=0.0.0.0
 
-# Run stage is per-$TARGETPLATFORM; it only copies the arch-independent bundle.
-FROM mirror.gcr.io/library/node:24-slim
-WORKDIR /app
-COPY --from=build /app/dist/http.mjs ./dist/http.mjs
-# Streamable HTTP listener (stateless); override with PORT (default 8080).
 EXPOSE 8080
-# Non-root nobody (repo convention); server writes nothing → read-only-fs safe.
+
 USER 65534:65534
-ENTRYPOINT ["node", "/app/dist/http.mjs"]
+
+CMD ["bun", "src/http.ts"]
