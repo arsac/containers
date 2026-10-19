@@ -1,173 +1,132 @@
 {
-  $schema: "https://docs.renovatebot.com/renovate-schema.json",
-  extends: ["github>home-operations/renovate-config"],
-  customManagers: [
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["github>home-operations/renovate-config"],
+  "schedule": ["at any time"],
+  "customManagers": [
     {
-      customType: "regex",
-      description: "Process Annotations in Docker Bake",
-      managerFilePatterns: ["/(^|/)docker-bake\\.hcl$/"],
-      matchStrings: [
-        "datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( versioning=(?<versioning>\\S+))?\\n.+ = \"(?<currentValue>[^\"]+)\"",
+      "customType": "regex",
+      "description": "Process Annotations in Docker Bake",
+      "managerFilePatterns": ["/(^|/)docker-bake\\.hcl$/"],
+      "matchStrings": [
+        "datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( versioning=(?<versioning>\\S+))?\\n.+ = \"(?<currentValue>[^\"]+)\""
       ],
-      datasourceTemplate: "{{#if datasource}}{{{datasource}}}{{else}}github-releases{{/if}}",
-      versioningTemplate: "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}",
+      "datasourceTemplate": "{{#if datasource}}{{{datasource}}}{{else}}github-releases{{/if}}",
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
     },
     {
-      // Upstreams that ship no tags (kserve source, mealie-mcp-server, subgen,
-      // kagent) are pinned to a commit SHA. A SHA is not a version, so Renovate
-      // can only track them as a digest: the annotation names the branch to watch
-      // and the pinned SHA is rewritten when that branch head moves.
-      customType: "regex",
-      description: "Process commit-SHA annotations in Docker Bake",
-      managerFilePatterns: ["/(^|/)docker-bake\\.hcl$/"],
-      matchStrings: [
-        "default\\s*=\\s*\"(?<currentDigest>[0-9a-f]{40})\" // renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: packageName=(?<packageName>\\S+))? currentValue=(?<currentValue>\\S+)",
+      "customType": "regex",
+      "description": "Process Annotations in Dockerfiles",
+      "managerFilePatterns": ["/(^|/)Dockerfile$/"],
+      "matchStrings": [
+        "datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( versioning=(?<versioning>\\S+))?\\n.+(:\\s|=)(&\\S+\\s)?(?<currentValue>\\S+)"
       ],
-      datasourceTemplate: "{{{datasource}}}",
-    },
+      "datasourceTemplate": "{{#if datasource}}{{{datasource}}}{{else}}github-releases{{/if}}",
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{/if}}"
+    }
   ],
-  packageRules: [
+  "customDatasources": {
+    "qbittorrent": {
+      "defaultRegistryUrlTemplate": "https://github.com/userdocs/qbittorrent-nox-static/releases/latest/download/dependency-version.json",
+      "format": "json",
+      "transformTemplates": ["{\"releases\":[{\"version\": qbittorrent}]}"]
+    },
+    "servarr-develop": {
+      "defaultRegistryUrlTemplate": "https://{{packageName}}.servarr.com/v1/update/develop/changes?os=linux&runtime=netcore",
+      "format": "json",
+      "transformTemplates": ["{\"releases\":[{\"version\": $[0].version}]}"]
+    },
+    "servarr-nightly": {
+      "defaultRegistryUrlTemplate": "https://{{packageName}}.servarr.com/v1/update/nightly/changes?os=linux&runtime=netcore",
+      "format": "json",
+      "transformTemplates": ["{\"releases\":[{\"version\": $[0].version}]}"]
+    },
+    "sonarr-develop": {
+      "defaultRegistryUrlTemplate": "https://services.sonarr.tv/v1/update/develop/changes?os=linux&runtime=netcore&version=5.0",
+      "format": "json",
+      "transformTemplates": ["{\"releases\":[{\"version\": $[0].version}]}"]
+    },
+    "plex": {
+      "defaultRegistryUrlTemplate": "https://plex.tv/api/downloads/5.json",
+      "format": "json",
+      "transformTemplates": ["{\"releases\":[{\"version\": computer.Linux.version}]}"]
+    }
+  },
+  "packageRules": [
     {
-      description: ["Release Rules for Application Updates"],
-      addLabels: ["app/{{parentDir}}"],
-      additionalBranchPrefix: "{{parentDir}}-",
-      commitMessageExtra: "( {{currentVersion}} → {{newVersion}} )",
-      commitMessageTopic: "{{depName}}",
-      matchFileNames: ["**/docker-bake.hcl", "**/Dockerfile"],
-      semanticCommitScope: "{{parentDir}}",
-      semanticCommitType: "release",
+      "description": ["Release Rules for App Updates"],
+      "addLabels": ["app/{{parentDir}}"],
+      "additionalBranchPrefix": "{{parentDir}}-",
+      "commitMessageExtra": "( {{currentVersion}} → {{newVersion}} )",
+      "commitMessageTopic": "{{depName}}",
+      "matchFileNames": ["**/docker-bake.hcl", "**/Dockerfile"],
+      "semanticCommitScope": "{{parentDir}}",
+      "semanticCommitType": "release"
     },
     {
-      description: ["Auto-merge Application Updates"],
-      matchFileNames: ["**/docker-bake.hcl"],
-      automerge: true,
-      automergeType: "pr",
-      ignoreTests: false,
+      "description": ["Auto-merge App Updates"],
+      "matchFileNames": ["**/docker-bake.hcl"],
+      "automerge": true,
+      "ignoreTests": false
     },
     {
-      description: ["Exempt App Updates from prHourlyLimit and create them last, since they still add to the hourly PR count"],
-      matchFileNames: ["apps/**"],
-      prHourlyLimit: 0,
-      prPriority: -1,
-    },
-    {
-      // bake VERSION is both the published tag and the vLLM installed in the
-      // image, and transformers is pinned to what vllm 0.22.1 tests against,
-      // so a bump of either alone would mislabel a tag or split the stack
-      // across PRs. automerge false overrides the bake automerge rule above:
-      // patches/ target the 0.22 API and the swap needs a GPU validation.
-      description: ["kserve: move the vLLM stack as one PR, never automerged"],
-      matchFileNames: [
-        "apps/kserve-huggingfaceserver/docker-bake.hcl",
-        "apps/kserve-huggingfaceserver/Dockerfile",
+      "description": [
+        "Exempt App Updates from prHourlyLimit and create them last, since they still add to the hourly PR count"
       ],
-      matchDepNames: ["vllm", "transformers"],
-      groupName: "kserve vLLM stack",
-      groupSlug: "kserve-vllm-stack",
-      automerge: false,
+      "matchFileNames": ["apps/**"],
+      "prHourlyLimit": 0,
+      "prPriority": -1
     },
     {
-      description: ["Allowed Ubuntu Version for Base Images"],
-      matchDatasources: ["docker"],
-      matchFileNames: ["**/Dockerfile"],
-      // kserve-huggingfaceserver ships ubuntu:25.10, an EOL interim release;
-      // the filter must match the pin and still leave room for the 26.04 LTS move.
-      matchPackageNames: ["/ubuntu/"],
-      allowedVersions: "/^(25\\.10|26\\.04)$/",
+      "description": ["Auto-merge esphome-device-builder Updates"],
+      "matchDepNames": ["esphome-device-builder"],
+      "automerge": true,
+      "ignoreTests": false
     },
     {
-      description: ["Allowed Alpine Version for Base Images"],
-      matchDatasources: ["docker"],
-      matchFileNames: ["**/Dockerfile"],
-      matchPackageNames: ["/alpine/"],
-      allowedVersions: "/3\\.22/",
+      "description": ["Auto-merge tf-runner Updates"],
+      "matchDepNames": ["ghcr.io/flux-iac/tf-runner"],
+      "automerge": true,
+      "ignoreTests": false
     },
     {
-      description: ["Allowed Python Version for Debian Slim Base Images"],
-      // mealie-mcp-server pins python:3.12.N-slim-bookworm. Docker
-      // versioning only offers tags with the same number of version parts, so
-      // the pin must be three-part for this filter to let patch bumps through.
-      // A base on a new series needs its own rule, or the old
-      // /3\\.13-alpine3\\.22/ situation again, where nothing matched.
-      matchDatasources: ["docker"],
-      matchFileNames: ["**/Dockerfile"],
-      matchPackageNames: ["/python/"],
-      allowedVersions: "/3\\.12\\.\\d+-slim-bookworm/",
+      "description": ["Allowed Ubuntu Version for Base Images"],
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["/ubuntu/"],
+      "allowedVersions": "/26\\.04/"
     },
     {
-      description: ["Node: stay on the current even LTS major (block odd/non-LTS 25+)"],
-      matchDatasources: ["docker"],
-      matchFileNames: ["**/Dockerfile"],
-      matchPackageNames: ["/node/"],
-      allowedVersions: "<25",
+      "description": ["Allowed Alpine Version for Base Images"],
+      "matchDatasources": ["docker"],
+      "matchFileNames": ["**/Dockerfile"],
+      "matchPackageNames": ["/alpine/"],
+      "allowedVersions": "/3\\.24/"
     },
     {
-      description: ["Bun builder: stay on 1.2.x (bun.lock / --frozen-lockfile compatibility)"],
-      matchDatasources: ["docker"],
-      matchFileNames: ["**/Dockerfile"],
-      matchPackageNames: ["/oven/"],
-      allowedVersions: "<1.3",
+      "description": ["Allowed Alpine Version for Postgres Base Images"],
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["/postgres/"],
+      "allowedVersions": "/alpine3\\.24/"
     },
     {
-      description: ["Auto-merge node/bun base image minor+patch on green CI"],
-      matchDatasources: ["docker"],
-      matchFileNames: ["**/Dockerfile"],
-      matchPackageNames: ["/node/", "/oven/"],
-      matchUpdateTypes: ["minor", "patch", "digest"],
-      automerge: true,
-      automergeType: "pr",
-      minimumReleaseAge: "3 days",
-      ignoreTests: false,
+      "description": ["Allowed Python Version for Alpine Base Images"],
+      "matchDatasources": ["docker"],
+      "matchFileNames": ["**/Dockerfile"],
+      "matchPackageNames": ["/python/"],
+      "allowedVersions": "/3\\.14-alpine3\\.24/"
     },
     {
-      description: ["llm-inference-bench: python base capped at 3.14 - psutil publishes no cp315 wheels, so a 3.15 base fails the dependency install"],
-      matchDatasources: ["docker"],
-      matchFileNames: ["apps/llm-inference-bench/Dockerfile"],
-      matchPackageNames: ["/python/"],
-      allowedVersions: "/3\\.14\\.\\d+-slim-bookworm/",
+      "description": ["Allowed Python Version for Debian Base Images"],
+      "matchDatasources": ["docker"],
+      "matchFileNames": ["**/Dockerfile"],
+      "matchPackageNames": ["/python/"],
+      "allowedVersions": "/3\\.14-slim/"
     },
     {
-      // 1.3.0 renamed the extension to nixl_ep_cu13; vLLM still imports the
-      // top-level nixl_ep, so anything on the 1.3+ line breaks the build.
-      description: ["nixl-cu13: stay on the 1.2 line, the last one vLLM can import"],
-      matchDatasources: ["pypi"],
-      matchFileNames: ["apps/kserve-huggingfaceserver/Dockerfile"],
-      matchPackageNames: ["nixl-cu13"],
-      allowedVersions: "<1.3",
-    },
-    {
-      description: ["Auto-merge llm-inference-bench python/uv base image minor+patch on green CI"],
-      matchDatasources: ["docker"],
-      matchFileNames: ["apps/llm-inference-bench/Dockerfile"],
-      matchPackageNames: ["/python/", "ghcr.io/astral-sh/uv"],
-      matchUpdateTypes: ["minor", "patch", "digest"],
-      automerge: true,
-      automergeType: "pr",
-      minimumReleaseAge: "3 days",
-      ignoreTests: false,
-    },
-    {
-      description: ["Commit pins watch exactly the branch named in the annotation - git-refs ranks every ref, so without this a fork jumps release lines"],
-      matchDatasources: ["git-refs"],
-      matchFileNames: ["**/docker-bake.hcl"],
-      matchDepNames: ["McCloudS/subgen", "kagent-dev/kagent", "rldiao/mealie-mcp-server", "ostris/ai-toolkit"],
-      allowedVersions: "/^main$/",
-    },
-    {
-      // The fork is patched against v0.19.0; an unfiltered digest lookup offered
-      // v0.21.0, which no one chose.
-      description: ["kserve's pin tracks its own release branch only"],
-      matchDatasources: ["git-refs"],
-      matchFileNames: ["**/docker-bake.hcl"],
-      matchDepNames: ["kserve/kserve"],
-      allowedVersions: "/^release-0\\.19$/",
-    },
-    {
-      description: ["Commit pins have no release gate, so a human reads what moved before it ships"],
-      matchDatasources: ["git-refs"],
-      matchFileNames: ["**/docker-bake.hcl"],
-      matchUpdateTypes: ["digest"],
-      automerge: false,
-    },
-  ],
+      "description": ["Allowed Java Version for NZBHydra2 Base Image"],
+      "matchDatasources": ["docker"],
+      "matchFileNames": ["apps/nzbhydra2/Dockerfile"],
+      "matchPackageNames": ["/amazoncorretto/"],
+      "allowedVersions": "/17-alpine3\\.24/"
+    }
+  ]
 }
