@@ -262,7 +262,7 @@ jobs:
           # shellcheck disable=SC2046  # tags and digest refs are intentionally word-split into separate args
           docker buildx imagetools create \
               $(jq --raw-output --compact-output --arg image "${IMAGE}" '.target."docker-metadata-action".tags | map(select(startswith($image)) | "-t " + .) | join(" ")' "${{ runner.temp }}/docker-metadata-action-bake.json") \
-              $(printf '%s@sha256:%s ' "${IMAGE}" *)
+              $(printf "${IMAGE}@sha256:%s " *)
 
       - name: Inspect Image
         run: |
