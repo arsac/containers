@@ -194,7 +194,7 @@ RUN --mount=type=cache,target=/root/.cache/uv uv pip install vllm[runai,tensoriz
 # gemma4 config; vllm 0.22.1 tests against 5.5.3 and gemma4_mm imports
 # transformers.models.gemma4 at module load).
 # renovate: datasource=pypi depName=transformers
-RUN --mount=type=cache,target=/root/.cache/uv uv pip install transformers==5.20.1
+RUN --mount=type=cache,target=/root/.cache/uv uv pip install transformers==5.20.2
 
 # vLLM 0.22.1's fused_moe loads nixl_ep, and the stock nixl-cu12 wheel links
 # libcudart.so.12 (absent in this CUDA 13 image) -> ImportError that crashes
