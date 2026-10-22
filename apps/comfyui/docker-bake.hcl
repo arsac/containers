@@ -23,7 +23,7 @@ variable "BASE_IMAGE" {
 
 variable "UV_VERSION" {
   // renovate: datasource=github-releases depName=astral-sh/uv
-  default = "0.13.1"
+  default = "0.13.5"
 }
 
 group "default" {
