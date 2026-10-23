@@ -3,7 +3,7 @@
 # renovate's docker manager resolves an ARG-interpolated FROM from this default,
 # so the uv pin lives here and nowhere else (the same way subgen
 # owns its CUDA_VERSION).
-ARG UV_VERSION="0.13.1"
+ARG UV_VERSION="0.13.5"
 
 # Supplied by docker-bake.hcl, which carries the annotated upstream pin.
 ARG VERSION
