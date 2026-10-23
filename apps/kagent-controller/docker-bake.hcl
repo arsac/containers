@@ -16,7 +16,7 @@ variable "VERSION" {
 # kagent has fixed the credential grammar upstream - in which case this image
 # should be deleted rather than rebase.
 variable "KAGENT_REF" {
-  default = "7a0a4fd0389f716b5f6f83fbdf97adbc166011d9" // renovate: datasource=git-refs depName=kagent-dev/kagent packageName=https://github.com/kagent-dev/kagent currentValue=main
+  default = "6401bd1e8da1d49d9a5d8778fca77ad451a7bc5c" // renovate: datasource=git-refs depName=kagent-dev/kagent packageName=https://github.com/kagent-dev/kagent currentValue=main
 }
 
 # Upstream image whose final stage is reused. Keep this in step with the digest
