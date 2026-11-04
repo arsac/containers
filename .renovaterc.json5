@@ -85,6 +85,24 @@
     },
     {
       "description": [
+        "ate-env: both images take the same Substrate fork tag and ate-env commit, so their pins move as one PR, never automerged - the pair is a compatibility pin the cluster's Substrate chart has to match"
+      ],
+      "matchFileNames": [
+        "apps/ate-env-api/docker-bake.hcl",
+        "apps/ate-env-guest/docker-bake.hcl"
+      ],
+      "matchDepNames": [
+        "agent-substrate/env",
+        "kagent-dev/substrate"
+      ],
+      "groupName": "ate-env",
+      "groupSlug": "ate-env",
+      "additionalBranchPrefix": "",
+      "semanticCommitScope": "ate-env",
+      "automerge": false
+    },
+    {
+      "description": [
         "Allowed Ubuntu Version for Base Images"
       ],
       "matchDatasources": [
@@ -250,7 +268,8 @@
         "McCloudS/subgen",
         "kagent-dev/kagent",
         "rldiao/mealie-mcp-server",
-        "ostris/ai-toolkit"
+        "ostris/ai-toolkit",
+        "agent-substrate/env"
       ],
       "allowedVersions": "/^main$/"
     },
