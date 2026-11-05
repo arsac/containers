@@ -16,14 +16,14 @@ permissions:
 jobs:
   test-version:
     name: Test Version (${{ inputs.version }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Get Application Versions
+      - name: Get App Versions
         uses: $/.github/actions/app-versions
         id: app-versions
         with:
