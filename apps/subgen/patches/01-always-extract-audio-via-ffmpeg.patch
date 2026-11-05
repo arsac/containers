@@ -21,10 +21,10 @@ so faster-whisper always receives clean mono 16kHz WAV bytes.
 
 --- a/subgen.py
 +++ b/subgen.py
-@@ -1517,7 +1517,7 @@
-     audio_bytes = None
-     audio_tracks = get_audio_tracks(file_path)
-
+@@ -1698,7 +1698,7 @@ def handle_multiple_audio_tracks(file_path: str, language: LanguageCode | None =
+     if audio_tracks is None:
+         audio_tracks = get_audio_tracks(file_path)
+ 
 -    if len(audio_tracks) > 1:
 +    if audio_tracks:
          logging.debug(f"Handling multiple audio tracks from {file_path} and planning to extract audio track of language {language}")
