@@ -20,5 +20,7 @@
 - name: type/major
   color: f6412d
 # Uncategorized
+- name: deprecation
+  color: c5def5
 - name: stale
   color: c5def5
