@@ -69,22 +69,6 @@
     },
     {
       "description": [
-        "kserve: move the vLLM stack as one PR, never automerged"
-      ],
-      "matchFileNames": [
-        "apps/kserve-huggingfaceserver/docker-bake.hcl",
-        "apps/kserve-huggingfaceserver/Dockerfile"
-      ],
-      "matchDepNames": [
-        "vllm",
-        "transformers"
-      ],
-      "groupName": "kserve vLLM stack",
-      "groupSlug": "kserve-vllm-stack",
-      "automerge": false
-    },
-    {
-      "description": [
         "ate-env: both images take the same Substrate fork tag and ate-env commit, so their pins move as one PR, never automerged - the pair is a compatibility pin the cluster's Substrate chart has to match"
       ],
       "matchFileNames": [
@@ -217,21 +201,6 @@
     },
     {
       "description": [
-        "nixl-cu13: stay on the 1.2 line, the last one vLLM can import"
-      ],
-      "matchDatasources": [
-        "pypi"
-      ],
-      "matchFileNames": [
-        "apps/kserve-huggingfaceserver/Dockerfile"
-      ],
-      "matchPackageNames": [
-        "nixl-cu13"
-      ],
-      "allowedVersions": "<1.3"
-    },
-    {
-      "description": [
         "Auto-merge llm-inference-bench python/uv base image minor+patch on green CI"
       ],
       "matchDatasources": [
@@ -272,21 +241,6 @@
         "agent-substrate/env"
       ],
       "allowedVersions": "/^main$/"
-    },
-    {
-      "description": [
-        "kserve's pin tracks its own release branch only"
-      ],
-      "matchDatasources": [
-        "git-refs"
-      ],
-      "matchFileNames": [
-        "**/docker-bake.hcl"
-      ],
-      "matchDepNames": [
-        "kserve/kserve"
-      ],
-      "allowedVersions": "/^release-0\\.19$/"
     },
     {
       "description": [

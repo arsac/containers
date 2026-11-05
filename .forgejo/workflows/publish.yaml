@@ -2,7 +2,7 @@ name: Publish (Forgejo)
 
 # Builds every CHANGED app under apps/ and pushes to the INTERNAL LAN registry so
 # the cluster pulls quickly. Per-app platforms/refs/versions live in each app's
-# docker-bake.hcl (kserve = amd64-only; honcho-mcp = amd64,arm64), so this
+# docker-bake.hcl (comfyui = amd64-only; honcho-mcp = amd64,arm64), so this
 # workflow is app-agnostic — a new app needs only apps/<name>/{Dockerfile,
 # docker-bake.hcl}, no change here.
 #
