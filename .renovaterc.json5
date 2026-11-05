@@ -1,7 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "github>home-operations/renovate-config"
+    "github>home-operations/.github:renovate-config"
   ],
   "customManagers": [
     {
