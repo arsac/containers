@@ -16,6 +16,10 @@ RUN git clone --recurse-submodules https://github.com/vladmandic/sdnext.git /app
 
 WORKDIR /app
 
+# launch.py imports modules.logger, which needs rich before sdnext's installer
+# has installed anything; take the version sdnext's requirements pin.
+RUN pip install "$(grep -E '^rich==' /app/requirements.txt)"
+
 # stop pip and uv from caching
 ENV PIP_NO_CACHE_DIR=true
 ENV UV_NO_CACHE=true
