@@ -46,7 +46,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Runner
-        uses: ./.github/actions/setup-build-cuda
+        uses: $/.github/actions/setup-build-cuda
         with:
           python-version: ${{ needs.setup-environment.outputs.python-version }}
           # Stable torch pinned to match the comfyui base image exactly, so the
