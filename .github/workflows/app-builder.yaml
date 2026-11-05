@@ -142,7 +142,7 @@ jobs:
       - name: Check For App Tests
         id: tests
         run: |
-          if [[ -f "apps/${APP}/tests.yaml" ]]; then
+          if [[ -f "apps/${APP}/container_test.go" ]]; then
               echo "present=true" >> "$GITHUB_OUTPUT"
           else
               echo "present=false" >> "$GITHUB_OUTPUT"
@@ -174,7 +174,7 @@ jobs:
         run: |
           rsync -a --ignore-existing ./include/ "./apps/${APP}/"
 
-      # A PR build of an app without tests is only a compile check, so it stays
+      # A PR build of an app without a container_test.go is only a compile check, so it stays
       # in the build cache instead of being loaded into the runner's Docker,
       # which would double the disk a CUDA image needs.
       - name: Build App
@@ -225,7 +225,6 @@ jobs:
         with:
           app: ${{ inputs.app }}
           image: ghcr.io/${{ github.repository_owner }}/${{ inputs.app }}:sandbox
-          token: ${{ github.token }}
 
   merge:
     if: ${{ inputs.release }}
