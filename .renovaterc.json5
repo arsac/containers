@@ -235,7 +235,6 @@
       ],
       "matchDepNames": [
         "McCloudS/subgen",
-        "kagent-dev/kagent",
         "rldiao/mealie-mcp-server",
         "ostris/ai-toolkit",
         "agent-substrate/env"

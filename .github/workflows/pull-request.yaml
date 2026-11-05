@@ -37,6 +37,53 @@ jobs:
           json: true
           path: apps
 
+  go-check:
+    name: Go Compile & Vet
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Mise
+        uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
+        with:
+          experimental: true
+          install_args: --locked
+
+      - name: Restore Go Modules
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('go.sum') }}
+
+      - name: Compile tests
+        run: go test -run='^$' ./...
+
+      - name: Vet
+        run: go vet ./...
+
+  droast:
+    name: Droast
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Mise
+        uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
+        with:
+          experimental: true
+          install_args: --locked
+
+      - name: Droast
+        run: droast .
+
   build:
     if: ${{ needs.prepare.outputs.changed-files != '[]' }}
     name: Build ${{ matrix.app }}
@@ -59,12 +106,30 @@ jobs:
       app: ${{ matrix.app }}
       release: false
 
+  zizmor:
+    name: Zizmor
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
+        with:
+          advanced-security: false
+          annotations: true
+
   status:
     if: ${{ !cancelled() }}
     name: Build Success
     needs:
       - build
+      - droast
+      - go-check
       - prepare
+      - zizmor
     runs-on: ubuntu-26.04
     permissions: {}
     steps:

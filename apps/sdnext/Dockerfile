@@ -20,6 +20,15 @@ WORKDIR /app
 ENV PIP_NO_CACHE_DIR=true
 ENV UV_NO_CACHE=true
 ENV PIP_ROOT_USER_ACTION=ignore
+# The PyTorch base uses Ubuntu's PEP 668 system Python; sdnext's own
+# Dockerfile installs into it the same way.
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
+ENV UV_BREAK_SYSTEM_PACKAGES=1
+ENV UV_SYSTEM_PYTHON=1
+# launch.py imports modules.logger, which needs rich before sdnext's installer
+# has installed anything; take the version sdnext's requirements pin.
+RUN pip install "$(grep -E '^rich==' /app/requirements.txt)"
+
 # disable model hashing for faster startup
 ENV SD_NOHASHING=true
 # set data directories

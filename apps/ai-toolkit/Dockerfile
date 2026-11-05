@@ -93,6 +93,10 @@ RUN --mount=type=cache,target=/root/.npm \
     npm run build && \
     npm run update_db
 
+# node_modules stays writable by any uid: the entrypoint's `npm run update_db`
+# writes under it at startup, and the image is meant to run as whatever user
+# the deployment picks.
+# droast ignore=DF034
 RUN mkdir -p /config && \
     mv /app/aitk_db.db /app/aitk_db.db.default && \
     cp /app/aitk_db.db.default /config/aitk_db.db && \
