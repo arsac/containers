@@ -170,10 +170,6 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      - name: Add Include Directory to Build Context
-        run: |
-          rsync -a --ignore-existing ./include/ "./apps/${APP}/"
-
       # A PR build of an app without tests is only a compile check, so it stays
       # in the build cache instead of being loaded into the runner's Docker,
       # which would double the disk a CUDA image needs.
