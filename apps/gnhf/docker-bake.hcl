@@ -13,7 +13,7 @@ variable "VERSION" {
 # OpenAI-compatible base URL, which is what points it at a self-hosted model.
 variable "OPENCODE_VERSION" {
   // renovate: datasource=npm depName=opencode-ai
-  default = "1.19.4"
+  default = "1.19.5"
 }
 
 variable "NO_MISTAKES_VERSION" {
