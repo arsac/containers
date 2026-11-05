@@ -4,7 +4,7 @@ ARG VERSION="v0.41.0"
 # Pinned to the cu128 line deliberately - cu13x images need a >= 580 host
 # driver; bump only after checking `nvidia-smi` on the GPU hosts.
 ARG BASE_IMAGE="mirror.gcr.io/pytorch/pytorch:2.11.0-cuda12.8-cudnn9-devel"
-ARG UV_VERSION="0.13.1"
+ARG UV_VERSION="0.13.5"
 
 # uv comes from its own image; BuildKit cannot expand ARGs in COPY --from,
 # so the image must be referenced from a named stage
