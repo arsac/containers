@@ -5,7 +5,7 @@ variable "APP" {
 }
 
 variable "VERSION" {
-  default = "7cc9fef46927a2737049e7d31ec99d6de2448665" // renovate: datasource=git-refs depName=ostris/ai-toolkit packageName=https://github.com/ostris/ai-toolkit currentValue=main
+  default = "beb94824c51480a04d3c86c718603676fdef6938" // renovate: datasource=git-refs depName=ostris/ai-toolkit packageName=https://github.com/ostris/ai-toolkit currentValue=main
 }
 
 variable "SOURCE" {
