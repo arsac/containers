@@ -9,32 +9,46 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   prepare:
     name: Prepare
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
-      changed-files: ${{ steps.changed-files.outputs.changed_files }}
+      changed-files: ${{ steps.changed-files.outputs.all_changed_files }}
     steps:
-      - name: Get changed files
-        id: changed-files
-        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Get changed files
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        id: changed-files
+        with:
+          dir_names: true
+          dir_names_exclude_current_dir: true
+          dir_names_max_depth: 1
+          escape_json: false
+          json: true
           path: apps
-          include_only_directories: true
-          max_depth: 1
 
   build:
     if: ${{ needs.prepare.outputs.changed-files != '[]' }}
     name: Build ${{ matrix.app }}
-    needs: ["prepare"]
-    uses: ./.github/workflows/image-builder.yaml
+    needs:
+      - prepare
+    uses: $/.github/workflows/app-builder.yaml
     permissions:
+      artifact-metadata: write
       attestations: write
       contents: write
       id-token: write
       packages: write
-      security-events: write
     secrets: inherit
     strategy:
       matrix:
@@ -42,14 +56,16 @@ jobs:
       fail-fast: false
       max-parallel: 4
     with:
-      image: ${{ matrix.app }}
+      app: ${{ matrix.app }}
       release: false
 
   status:
     if: ${{ !cancelled() }}
     name: Build Success
-    needs: ["build"]
-    runs-on: ubuntu-latest
+    needs:
+      - build
+      - prepare
+    runs-on: ubuntu-26.04
     permissions: {}
     steps:
       # cancelled counts as failed: !cancelled() above still runs this job when
@@ -57,8 +73,10 @@ jobs:
       # that never reached a verdict must not clear the merge gate.
       - name: Any jobs failed?
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
-        run: exit 1
+        run: |
+          exit 1
 
       - name: All jobs passed or skipped?
         if: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
-        run: echo "All jobs passed or skipped" && echo "${{ toJSON(needs.*.result) }}"
+        run: |
+          echo "All jobs passed or skipped" && echo "${{ toJSON(needs.*.result) }}"
