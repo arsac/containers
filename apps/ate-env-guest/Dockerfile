@@ -27,7 +27,7 @@ RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -o /out/ate-env-gue
 
 # Base from upstream's .ko.yaml. Runs as the base's root user, as upstream's
 # image does: the daemon binds :80 and execs workloads inside the actor.
-FROM mirror.gcr.io/library/bash:5.3@sha256:61962062d969cb46dfc2bad061d36342406fa485f64f246aa7e95693ca07df1f
+FROM mirror.gcr.io/library/bash:5.3@sha256:ab2ada570d744f42f517986fdd3c81ef60fe2054ed0c5295a7922e3b0ccd1b02
 COPY --from=build /src/LICENSE /usr/share/doc/ate-env/LICENSE
 COPY --from=build /out/ate-env-guest /ko-app/ate-env-guest
 ENV PATH=${PATH}:/ko-app
