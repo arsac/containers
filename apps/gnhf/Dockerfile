@@ -18,7 +18,7 @@ ARG OPENCODE_VERSION="1.19.4"
 # renovate: datasource=github-releases depName=kunchenguid/no-mistakes
 ARG NO_MISTAKES_VERSION="v1.84.0"
 # renovate: datasource=github-releases depName=kunchenguid/treehouse
-ARG TREEHOUSE_VERSION="v3.1.5"
+ARG TREEHOUSE_VERSION="v3.1.8"
 
 ARG TARGETARCH
 
