@@ -14,7 +14,7 @@ FROM mirror.gcr.io/library/node:24-slim
 # renovate: datasource=npm depName=gnhf
 ARG VERSION="0.1.51"
 # renovate: datasource=npm depName=opencode-ai
-ARG OPENCODE_VERSION="1.19.3"
+ARG OPENCODE_VERSION="1.19.4"
 # renovate: datasource=github-releases depName=kunchenguid/no-mistakes
 ARG NO_MISTAKES_VERSION="v1.84.0"
 # renovate: datasource=github-releases depName=kunchenguid/treehouse
