@@ -18,9 +18,10 @@ on:
         required: false
         default: true
 
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: true
+# No workflow-level concurrency: a push run builds only the apps that push
+# changed, so cancelling it for a newer push drops those apps' releases. A
+# newer build of the same app still supersedes an older one through
+# image-builder's own concurrency group.
 
 permissions:
   contents: read
