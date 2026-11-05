@@ -28,14 +28,19 @@ jobs:
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
           permission-issues: write
 
-      - name: Install Task
-        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+      - name: Setup Mise
+        uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
         with:
-          repo-token: ${{ steps.app-token.outputs.token }}
-          version: 3.x
+          experimental: true
+          install_args: --locked
 
-      - name: Generate Label Config
-        run: task generate-label-config --force
+      # labeler.yaml creates the app/* labels; listing them here keeps
+      # delete-other-labels from removing them.
+      - name: Add App Labels
+        run: |
+          find apps -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | while IFS= read -r app; do
+            yq -i ". += [{\"name\": \"app/$app\", \"color\": \"027fa0\"}]" .github/labels.yaml
+          done
 
       - name: Sync Labels
         uses: EndBug/label-sync@52074158190acb45f3077f9099fea818aa43f97a # v2.3.3

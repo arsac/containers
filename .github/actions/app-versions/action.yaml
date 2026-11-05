@@ -1,6 +1,6 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/github-action.json
-name: Application Versions
+name: App Versions
 description: Takes an upstream version string and returns various version types
 
 inputs:
@@ -25,16 +25,29 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Setup Node
-      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-      with:
-        node-version: 24.x
-
-    - name: Install Semver
+    - name: Create package.json
       shell: bash
-      run: npm install semver
+      run: |
+        cat > package.json << 'EOF'
+        {
+          "dependencies": {
+            "semver": "^7.7.2"
+          }
+        }
+        EOF
 
-    - name: Application Versions
+    - name: Setup Mise
+      uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
+      with:
+        experimental: true
+        install_args: --locked
+
+    - name: Setup Node Dependencies
+      shell: bash
+      run: |
+        npm install
+
+    - name: App Versions
       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
       id: versions
       env:
