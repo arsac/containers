@@ -181,4 +181,3 @@ CMD ["python", "/app/main.py", \
     "--extra-model-paths-config", "/app/extra_model_paths.yaml", \
     "--database-url", "sqlite:////config/user/comfyui.db", \
     "--use-sage-attention"]
-
