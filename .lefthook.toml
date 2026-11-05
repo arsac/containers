@@ -63,3 +63,7 @@ run = "shellcheck {staged_files}"
 [pre-commit.commands.zizmor]
 glob = [".github/workflows/*.yaml", ".github/actions/**/action.yaml", "actions/**/action.yaml"]
 run = "zizmor --offline {staged_files}"
+
+[pre-commit.commands.droast]
+glob = ["**/Dockerfile"]
+run = "droast {staged_files}"

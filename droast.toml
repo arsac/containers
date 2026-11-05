@@ -1,0 +1,8 @@
+skip = ["DF021"]
+
+[shellcheck]
+mode = "required"
+# droast hands `RUN python - <<'PY'` heredoc bodies to ShellCheck as shell, so
+# the Python in comfyui and llm-inference-bench reads as these syntax errors.
+# Path overrides cannot scope ShellCheck codes, so the exclusion is global.
+exclude = ["SC1036", "SC1088", "SC2283"]
