@@ -32,3 +32,4 @@ COPY --from=build /src/LICENSE /usr/share/doc/ate-env/LICENSE
 COPY --from=build /out/ate-env-guest /ko-app/ate-env-guest
 ENV PATH=${PATH}:/ko-app
 ENTRYPOINT ["/ko-app/ate-env-guest"]
+
