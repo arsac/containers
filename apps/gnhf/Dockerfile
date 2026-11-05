@@ -12,7 +12,7 @@
 FROM mirror.gcr.io/library/node:24-slim
 
 # renovate: datasource=npm depName=gnhf
-ARG VERSION="0.1.51"
+ARG VERSION="0.1.52"
 # renovate: datasource=npm depName=opencode-ai
 ARG OPENCODE_VERSION="1.19.5"
 # renovate: datasource=github-releases depName=kunchenguid/no-mistakes
