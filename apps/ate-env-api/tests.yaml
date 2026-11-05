@@ -1,0 +1,29 @@
+---
+# container-structure-test spec (run by .github/actions/app-tests per arch).
+# Same ko layout as ate-env-guest; distroless has no shell, so the binary
+# running on it is the static check.
+schemaVersion: "2.0.0"
+
+metadataTest:
+  entrypoint: ["/ko-app/ate-env-api"]
+  user: "65534:65534"
+  labels:
+    - key: org.opencontainers.image.licenses
+      value: Apache-2.0
+    - key: org.opencontainers.image.source
+      value: https://github.com/agent-substrate/env
+
+fileExistenceTests:
+  - name: api at the ko path
+    path: /ko-app/ate-env-api
+    shouldExist: true
+    permissions: "-rwxr-xr-x"
+  - name: upstream license shipped
+    path: /usr/share/doc/ate-env/LICENSE
+    shouldExist: true
+
+commandTests:
+  - name: api starts
+    command: /ko-app/ate-env-api
+    args: ["-help"]
+    exitCode: 0

@@ -21,6 +21,9 @@ outputs:
   free-disk-space:
     description: Whether to free disk space before building (default true)
     value: ${{ steps.options.outputs.free-disk-space }}
+  exact-tag:
+    description: Whether VERSION is published as the only tag (default false)
+    value: ${{ steps.options.outputs.exact-tag }}
 
 runs:
   using: composite
@@ -49,7 +52,14 @@ runs:
         )
         FREE_DISK_SPACE="${FREE_DISK_SPACE:-true}"
 
+        EXACT_TAG=$(\
+            docker buildx bake --list type=variables,format=json --progress=quiet \
+                | jq --raw-output '.[] | select(.name == "EXACT_TAG") | .value' \
+        )
+        EXACT_TAG="${EXACT_TAG:-false}"
+
         echo "platforms=${PLATFORMS}" >> $GITHUB_OUTPUT
         echo "source=${SOURCE}" >> $GITHUB_OUTPUT
         echo "version=${VERSION}" >> $GITHUB_OUTPUT
         echo "free-disk-space=${FREE_DISK_SPACE}" >> $GITHUB_OUTPUT
+        echo "exact-tag=${EXACT_TAG}" >> $GITHUB_OUTPUT
