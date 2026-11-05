@@ -67,7 +67,8 @@ jobs:
         id: registry
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          IMAGE: ghcr.io/${{ github.repository_owner }}/${{ matrix.app }}:rolling
+          # EXACT_TAG apps publish no rolling tag; their only tag is VERSION.
+          IMAGE: ghcr.io/${{ github.repository_owner }}/${{ matrix.app }}:${{ steps.app-options.outputs.exact-tag == 'true' && steps.app-options.outputs.version || 'rolling' }}
           APP: ${{ matrix.app }}
         run: |
           if ! version=$(regctl image inspect "${IMAGE}" \
