@@ -27,7 +27,7 @@ permissions:
 jobs:
   renovate:
     name: Self-hosted Renovate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
       # GITHUB_TOKEN can't do this job: PRs it opens don't trigger workflows,

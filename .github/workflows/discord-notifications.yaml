@@ -14,7 +14,7 @@ permissions:
 jobs:
   notify:
     if: ${{ github.actor != 'bot-jackson[bot]' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Send Discord Webhook
         uses: sarisia/actions-status-discord@eb045afee445dc055c18d3d90bd0f244fd062708 # v1.16.0
