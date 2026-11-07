@@ -15,8 +15,8 @@ ARG VERSION
 # The pins have no defaults: docker-bake.hcl owns them, so a standalone `docker build` fails at
 # the step that uses them instead of quietly building whatever version was hardcoded here.
 ARG HINDSIGHT_CLIENT_VERSION
-ARG HINDSIGHT_TAG
-ARG HERMES_OTEL_TAG
+ARG HINDSIGHT_REF
+ARG HERMES_OTEL_REF
 ARG HOMEASSISTANT_REF
 
 # /bin/sh is dash here, so a piped RUN has no pipefail; declare it rather than trust the
@@ -25,8 +25,8 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Say that, instead of dying later inside uv or git with an empty pin.
 RUN : "${HINDSIGHT_CLIENT_VERSION:?is a docker-bake.hcl pin}" \
-      "${HINDSIGHT_TAG:?is a docker-bake.hcl pin}" \
-      "${HERMES_OTEL_TAG:?is a docker-bake.hcl pin}" \
+      "${HINDSIGHT_REF:?is a docker-bake.hcl pin}" \
+      "${HERMES_OTEL_REF:?is a docker-bake.hcl pin}" \
       "${HOMEASSISTANT_REF:?is a docker-bake.hcl pin}"
 
 # The runtime account. Upstream bakes `hermes` as 10000 and starts as root so a boot hook can
@@ -65,38 +65,32 @@ RUN uv="$(echo /opt/hermes/tools/uv-*/uv)" \
       "PyYAML>=6,<7" \
  && rm -f /tmp/venv-constraints.txt
 
-# Plugins. `hermes plugins install` commits the plugin directory in one admission transaction
-# and `--ref` wants the commit, not the tag, so tag pins are resolved first (peeled tag line)
-# and printed for provenance. Installs land in a throwaway HERMES_HOME and the plugin directory
-# is then moved into the bundled tree, which is what survives a volume mounted over /opt/data and
+# Plugins. `hermes plugins install` commits the plugin directory in one admission transaction and
+# `--ref` takes the commit itself, which is what the pins hold - so the build resolves nothing
+# over the network. Installs land in a throwaway HERMES_HOME and the plugin directory is then
+# moved into the bundled tree, which is what survives a volume mounted over /opt/data and
 # matches where Hermes discovers each kind: plugins/memory/<name> for a memory provider,
 # platforms/<name> for a platform, a top-level plugins/<name> for a hook plugin.
 # No --yes-deps: the dependency half of that transaction is already done above.
 
 # Hindsight: memory provider.
-RUN ref="$(git ls-remote --tags https://github.com/vectorize-io/hindsight \
-        "refs/tags/${HINDSIGHT_TAG}" "refs/tags/${HINDSIGHT_TAG}^{}" | tail -1 | cut -f1)" \
- && printf '%s\n' "$ref" | grep -Eqx '[0-9a-f]{40}' \
- && echo "hindsight ${HINDSIGHT_TAG} -> ${ref}" \
+RUN printf '%s\n' "${HINDSIGHT_REF}" | grep -Eqx '[0-9a-f]{40}' \
  && mkdir -p /opt/hermes-seed \
  && HERMES_HOME=/opt/hermes-seed /opt/hermes/.venv/bin/hermes plugins install \
-      --ref "$ref" vectorize-io/hindsight/hindsight-integrations/hermes \
+      --ref "${HINDSIGHT_REF}" vectorize-io/hindsight/hindsight-integrations/hermes \
  && mv /opt/hermes-seed/plugins/hindsight /opt/hermes/plugins/memory/hindsight \
  && rm -rf /opt/hermes-seed \
- && grep -qx "version: ${HINDSIGHT_TAG##*/v}" /opt/hermes/plugins/memory/hindsight/plugin.yaml
+ && grep -qx "name: hindsight" /opt/hermes/plugins/memory/hindsight/plugin.yaml
 
 # hermes_otel: hooks, so a top-level bundled plugin. Hooks are not a default-on kind, which is
 # why this one also needs `plugins.enabled: [hermes_otel]` in the runtime config to load.
-RUN ref="$(git ls-remote --tags https://github.com/briancaffey/hermes-otel \
-        "refs/tags/${HERMES_OTEL_TAG}" "refs/tags/${HERMES_OTEL_TAG}^{}" | tail -1 | cut -f1)" \
- && printf '%s\n' "$ref" | grep -Eqx '[0-9a-f]{40}' \
- && echo "hermes_otel ${HERMES_OTEL_TAG} -> ${ref}" \
+RUN printf '%s\n' "${HERMES_OTEL_REF}" | grep -Eqx '[0-9a-f]{40}' \
  && mkdir -p /opt/hermes-seed \
  && HERMES_HOME=/opt/hermes-seed /opt/hermes/.venv/bin/hermes plugins install \
-      --ref "$ref" briancaffey/hermes-otel/hermes_otel \
+      --ref "${HERMES_OTEL_REF}" briancaffey/hermes-otel/hermes_otel \
  && mv /opt/hermes-seed/plugins/hermes_otel /opt/hermes/plugins/hermes_otel \
  && rm -rf /opt/hermes-seed \
- && grep -qx "version: ${HERMES_OTEL_TAG##*-v}" /opt/hermes/plugins/hermes_otel/plugin.yaml
+ && grep -qx "name: hermes_otel" /opt/hermes/plugins/hermes_otel/plugin.yaml
 
 # Home Assistant: official plugin, tracked on the upstream repo's main branch because it
 # publishes no tags and no releases.

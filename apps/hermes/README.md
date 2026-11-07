@@ -164,64 +164,57 @@ deployment normally sets (model provider keys, gateway settings) is untouched by
 
 ## Pins
 
-| Pin                              | Where                      | Tracked by                          |
-| -------------------------------- | -------------------------- | ----------------------------------- |
-| `nousresearch/hermes-agent` tag  | `VERSION`                  | Renovate (`datasource=docker`)      |
-| `hindsight-client` version       | `HINDSIGHT_CLIENT_VERSION` | Renovate (`datasource=pypi`)        |
-| `hindsight` plugin release tag   | `HINDSIGHT_TAG`            | Renovate (`datasource=github-tags`) |
-| `hermes_otel` plugin release tag | `HERMES_OTEL_TAG`          | Renovate (`datasource=github-tags`) |
-| `homeassistant` plugin commit    | `HOMEASSISTANT_REF`        | Renovate (`datasource=git-refs`)    |
+| Pin                             | Where                      | Tracked by                       |
+| ------------------------------- | -------------------------- | -------------------------------- |
+| `nousresearch/hermes-agent` tag | `VERSION`                  | Renovate (`datasource=docker`)   |
+| `hindsight-client` version      | `HINDSIGHT_CLIENT_VERSION` | Renovate (`datasource=pypi`)     |
+| `hindsight` plugin commit       | `HINDSIGHT_REF`            | Renovate (`datasource=git-refs`) |
+| `hermes_otel` plugin commit     | `HERMES_OTEL_REF`          | Renovate (`datasource=git-refs`) |
+| `homeassistant` plugin commit   | `HOMEASSISTANT_REF`        | Renovate (`datasource=git-refs`) |
 
-Every pin is declared once, in `docker-bake.hcl`; the Dockerfile's `ARG`s carry no defaults, so a
-standalone `docker build` stops at the first pin and says where it comes from instead of building
-whatever version was last hardcoded there.
+Every plugin pin is a **commit**, which is what `hermes plugins install --ref` takes, so the
+build resolves nothing over the network: what the file says is what installs. Each annotation
+carries the release ref the commit came from (`currentValue`), which is what Renovate follows -
+`git-refs` proposes the next ref **and** its commit in one line edit - and the `versioning`
+regex keeps `integrations/hermes/vX.Y.Z` / `hermes-otel-vX.Y.Z` releases apart from the repos'
+other tags.
 
-Variable names say which kind of value they hold: `*_TAG` is an upstream release tag,
-`*_REF` is a commit, as `ATE_ENV_REF` is elsewhere in this repo. The kind is not cosmetic -
-`hermes plugins install --ref` refuses anything but a full commit SHA, so a tag is resolved to
-its commit in the build (peeled tag line, printed for provenance), while a commit is used as
-it stands.
+Two wrinkles worth knowing:
 
-The two plugin tags automerge: both repos tag their integrations on their own cadence
-(`integrations/hermes/vX.Y.Z`, `hermes-otel-vX.Y.Z`), so a release arrives as a PR and ships on
-green CI. `homeassistant` is the exception in kind, not in tracking:
-`NousResearch/hermes-official-plugins` publishes **no tags and no releases**, so its pin follows
-`main` and Renovate proposes a commit (a `digest` update). `.renovaterc.json5` holds commit pins
-for review, so that one PR waits for a human - the repo's stated policy for commit pins, since a
-digest PR cannot say what moved. Making it automerge too is a two-line change to the shared
-config (a `matchFileNames: apps/hermes/...` exception), not something this app can decide.
+- `vectorize-io/hindsight` tags with **annotated** tags, so `git-refs` tracks the tag object
+  (`c6f7a651…`), not the commit it closes over (`f14cc1eb…`, the one the base image's plugin
+  catalog pins for the same release). Both denote 1.2.4 and both install it; the difference is
+  only what a reviewer diffing against upstream's catalog will see.
+- `NousResearch/hermes-official-plugins` has **no tags and no releases**, so its pin follows
+  `main` and Renovate proposes a commit per merge there: a `digest` update, which this repo's
+  rules hold for review. Expect a PR per merge upstream if you want to stay current;
+  everything else here automerges.
 
 Three things make unattended bumps safe rather than hopeful:
 
-- **A tag pin is a release ref**, never a branch head: the `versioning` regex only ever
-  proposes `integrations/hermes/vX.Y.Z` or `hermes-otel-vX.Y.Z`, and `main` is the only branch
-  followed anywhere here.
-- **Every pin is content-addressed in the build**, and a tag that does not point at the version
-  it claims fails the build.
+- **A tag pin is a release ref, never a branch head**, and `main` is the only branch followed:
+  the `versioning` regex only ever proposes integration/plugin releases.
 - **A release can outrun the installer as well as the hermes version**: manifests carry a
   `manifest_version` (this image supports v2) and `hermes plugins install` refuses a newer one
   outright, so such a release fails the build instead of installing half a plugin. Other hermes
   images are pinned to old plugin commits for exactly that reason.
-- **The build checks each plugin's `requires_hermes` against the base image's version, and every
-  declared requirement against what the image installed.** A plugin release that outruns the
-  base image, needs a newer client, or introduces a dependency we do not install fails the build
-  instead of shipping something that errors on load. That check is what keeps plugin bumps and
-  the base image aligned without a human reading release notes: it has already refused one real
-  case during development (a `tzdata` requirement in a newer `homeassistant` commit, which only
-  applies on Windows and is now correctly skipped by its marker).
+- **The container tests check each plugin's `requires_hermes` against the base image's version,
+  and every declared requirement against what the image installed.** A plugin release that
+  outruns the base image, needs a newer client, or introduces a dependency we do not install
+  fails the build instead of shipping something that errors on load.
 
 `hindsight-client` is pinned inside the plugin's declared window, currently `>=0.10.1,<2`.
 The floor is not cosmetic: 0.10.0's probe ran `asyncio.run` on the caller's thread, so the
 next client call failed against a dead aiohttp session. `hermes_otel`'s OpenTelemetry
-packages are installed from the plugin's own declared ranges, which travel with the tag, and
-the venv's existing pins are passed to uv as **constraints**: a range that would upgrade or
-downgrade anything Hermes already pinned is refused by the resolver, naming both conflicting
-requirements, before the venv is touched.
+packages are installed from the plugin's own declared ranges, which travel with the pinned
+commit, and the venv's existing pins are passed to uv as **constraints**: a range that would
+upgrade or downgrade anything Hermes already pinned is refused by the resolver, naming both
+conflicting requirements, before the venv is touched.
 
 ## What is checked, and where
 
-The build checks what only a build can: that each plugin lands where its kind is discovered, and
-that each release tag resolves to a commit whose manifest carries the version the tag claims.
+The build checks what only a build can: that each plugin lands where its kind is discovered,
+under the manifest name/kind it should have.
 
 Whether a plugin still **loads** is asserted by `apps/hermes/container_test.go` against the built
 image: `requires_hermes` against the hermes version this image reports - swept over every bundled
