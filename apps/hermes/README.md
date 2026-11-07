@@ -11,11 +11,11 @@ cannot stand in for it: `hermes-agent` stopped being published to PyPI at **0.19
 the Hindsight plugin requires **hermes >= 0.21.4**. So this is upstream's image plus three
 additions, nothing rebuilt:
 
-| Added at build time                                   | Why                                                                                               |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `hindsight-client` in `/opt/hermes/.venv`             | The plugin imports it for cloud mode; the image venv is immutable at runtime.                     |
-| The plugin, at `/opt/hermes/plugins/memory/hindsight` | Installed from Hermes' reviewed catalog pin, then moved into the bundled memory tree (see below). |
-| `hermes` remapped from `10000` to `1000`              | Lets upstream's entrypoint run unprivileged without remapping UIDs at boot.                       |
+| Added at build time                                   | Why                                                                                  |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `hindsight-client` in `/opt/hermes/.venv`             | The plugin imports it for cloud mode; the image venv is immutable at runtime.        |
+| The plugin, at `/opt/hermes/plugins/memory/hindsight` | Installed from its release tag, then moved into the bundled memory tree (see below). |
+| `hermes` remapped from `10000` to `1000`              | Lets upstream's entrypoint run unprivileged without remapping UIDs at boot.          |
 
 Nothing else is layered on top: same entrypoint, same supervision tree, same `/opt/hermes`.
 
@@ -101,26 +101,40 @@ deliberately not installed. Everything else in `HERMES_HOME` the deployment norm
 
 ## Pins
 
-| Pin                             | Where                                        | Tracked by                     |
-| ------------------------------- | -------------------------------------------- | ------------------------------ |
-| `nousresearch/hermes-agent` tag | `docker-bake.hcl` `VERSION`                  | Renovate (`datasource=docker`) |
-| `hindsight-client` version      | `docker-bake.hcl` `HINDSIGHT_CLIENT_VERSION` | Renovate (`datasource=pypi`)   |
-| Plugin commit `f14cc1eb…`       | `docker-bake.hcl` `HINDSIGHT_REF`            | **Nothing, on purpose**        |
+| Pin                             | Where                                        | Tracked by                          |
+| ------------------------------- | -------------------------------------------- | ----------------------------------- |
+| `nousresearch/hermes-agent` tag | `docker-bake.hcl` `VERSION`                  | Renovate (`datasource=docker`)      |
+| `hindsight-client` version      | `docker-bake.hcl` `HINDSIGHT_CLIENT_VERSION` | Renovate (`datasource=pypi`)        |
+| Plugin release tag              | `docker-bake.hcl` `HINDSIGHT_TAG`            | Renovate (`datasource=github-tags`) |
 
-The plugin commit is Nous' reviewed pin for plugin 1.2.4 (`plugin-catalog/hindsight.yaml`
-in `NousResearch/hermes-agent`), passed explicitly with `--ref` rather than resolved from
-the base image's catalog, so a base bump cannot move the code the agent runs. Moving it is
-a deliberate edit after reviewing the new commit - nobody automates that, including Nous.
+All three are automergeable: a plugin or client release arrives as a PR and ships on green
+CI. That is deliberate - the plugin is versioned and tagged on its own cadence
+(`integrations/hermes/vX.Y.Z`, independently of the base image and of the client), so
+pinning it to a commit would only put a human with a git client in the loop.
 
-`hindsight-client` is pinned to `1.2.0`, the current release inside the plugin's declared
-`>=0.10.1,<2` window. The floor is not cosmetic: 0.10.0's probe ran `asyncio.run` on the
-caller's thread, so the next client call failed against a dead aiohttp session.
+Two things make those unattended bumps safe rather than hopeful:
+
+- **The tag is the plugin's release ref**, not a branch head: the `versioning` regex only
+  ever proposes `integrations/hermes/vX.Y.Z`. `hermes plugins install --ref` accepts only a
+  full commit SHA, so the Dockerfile resolves the tag to its commit (`git ls-remote`, peeled
+  tag line), installs by that SHA, prints it in the build log for provenance, and asserts
+  the installed `plugin.yaml` carries the tag's version. The base image's tag is resolved at
+  build time under the same trust.
+- **The build checks the plugin's declared requirements against what the image installed**
+  (`hindsight-client`, plus `hindsight-embed` as the known-optional local_embedded one), so
+  a release that needs a newer client - or a new dependency we do not install - fails the
+  build instead of shipping a provider that errors at runtime.
+
+`hindsight-client` is pinned inside the plugin's declared window, currently `>=0.10.1,<2`.
+The floor is not cosmetic: 0.10.0's probe ran `asyncio.run` on the caller's thread, so the
+next client call failed against a dead aiohttp session.
 
 ## Build-time assertions
 
-The Dockerfile fails the build if the client does not import or the plugin is not where
-discovery scans; it is not possible to publish an image that quietly has no memory
-backend.
+The Dockerfile fails the build if the client does not import, if the plugin is not where
+discovery scans, or if the plugin's declared requirements are not satisfied by what the
+image installed; it is not possible to publish an image that quietly has no memory backend,
+or one whose provider would fail on its first call.
 
 ## Local development
 

@@ -12,7 +12,7 @@ FROM ${SOURCE_IMAGE}:${VERSION}
 # global-scope ARGs are not visible inside stages without re-declaration
 ARG VERSION
 ARG HINDSIGHT_CLIENT_VERSION="1.2.0"
-ARG HINDSIGHT_REF="f14cc1eb5624b0374cb4d82768eb2e0b9c21ae24"
+ARG HINDSIGHT_TAG="integrations/hermes/v1.2.4"
 
 # The runtime account. Upstream bakes `hermes` as 10000 and starts as root so a boot hook
 # can remap the UID and chown the data volume; its entrypoint refuses a --user UID that is
@@ -30,21 +30,56 @@ RUN uv="$(echo /opt/hermes/tools/uv-*/uv)" \
  && "$uv" pip install --no-cache --python /opt/hermes/.venv/bin/python \
       "hindsight-client==${HINDSIGHT_CLIENT_VERSION}"
 
-# Install the plugin at the reviewed catalog pin, into a throwaway home, then move it into
-# the bundled memory tree. That is one of the two places Hermes discovers memory providers
+# Install the plugin at its own release tag, into a throwaway home, then move it into the
+# bundled memory tree. That is one of the two places Hermes discovers memory providers
 # (`<install>/plugins/memory/<name>`, `$HERMES_HOME/plugins/<name>`) and the only one that
 # survives a pod mounting a volume over /opt/data; it also keeps the plugin inside the
 # root-owned, read-only /opt/hermes tree instead of a writable home.
+# `plugins install --ref` only accepts a full commit SHA, so the tag is resolved here (the
+# peeled tag line, so an annotated tag yields its commit). The resolved SHA is printed for
+# provenance in the build log, and the installed manifest must carry the tag's version.
 # No --yes-deps: the dependency half of that install transaction resolves into the venv
 # above (already done) and refuses rather than half-installing in a non-interactive build.
-RUN mkdir -p /opt/hermes-seed \
+RUN ref="$(git ls-remote --tags https://github.com/vectorize-io/hindsight \
+        "refs/tags/${HINDSIGHT_TAG}" "refs/tags/${HINDSIGHT_TAG}^{}" | tail -1 | cut -f1)" \
+ && printf '%s\n' "$ref" | grep -Eqx '[0-9a-f]{40}' \
+ && echo "hindsight ${HINDSIGHT_TAG} -> ${ref}" \
+ && mkdir -p /opt/hermes-seed \
  && HERMES_HOME=/opt/hermes-seed /opt/hermes/.venv/bin/hermes plugins install \
-      --ref "${HINDSIGHT_REF}" vectorize-io/hindsight/hindsight-integrations/hermes \
+      --ref "$ref" vectorize-io/hindsight/hindsight-integrations/hermes \
  && mv /opt/hermes-seed/plugins/hindsight /opt/hermes/plugins/memory/hindsight \
- && rm -rf /opt/hermes-seed
+ && rm -rf /opt/hermes-seed \
+ && grep -qx "version: ${HINDSIGHT_TAG##*/v}" /opt/hermes/plugins/memory/hindsight/plugin.yaml
 
 # Build-time assertions: the client imports, and the plugin sits where discovery scans.
 RUN /opt/hermes/.venv/bin/python -c "import hindsight_client" \
  && test -f /opt/hermes/plugins/memory/hindsight/plugin.yaml
+
+# The plugin's declared requirements, checked against what this image actually installed. A
+# plugin release that needs something newer - or something we do not install at all - fails
+# here, so an unattended version bump cannot ship a provider whose calls error at runtime.
+# hindsight-embed is the one mode-specific extra (local_embedded), reported and skipped.
+RUN /opt/hermes/.venv/bin/python - <<'PY'
+import importlib.metadata as metadata
+import tomllib
+from pathlib import Path
+
+from packaging.requirements import Requirement
+
+OPTIONAL = ("hindsight-embed",)
+manifest = Path("/opt/hermes/plugins/memory/hindsight/pyproject.toml")
+for declared in tomllib.loads(manifest.read_text())["project"]["dependencies"]:
+    requirement = Requirement(declared)
+    try:
+        installed = metadata.version(requirement.name)
+    except metadata.PackageNotFoundError:
+        if requirement.name in OPTIONAL:
+            print(f"{requirement.name}: not installed, optional ({declared})")
+            continue
+        raise SystemExit(f"{requirement.name} is declared by the plugin but not installed ({declared})")
+    if installed not in requirement.specifier:
+        raise SystemExit(f"{requirement.name} {installed} does not satisfy the plugin's {declared}")
+    print(f"{requirement.name} {installed} satisfies {requirement.specifier}")
+PY
 
 USER 1000:1000

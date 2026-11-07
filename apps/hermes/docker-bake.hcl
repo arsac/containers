@@ -22,11 +22,13 @@ variable "HINDSIGHT_CLIENT_VERSION" {
   default = "1.2.0"
 }
 
-# Nous' reviewed catalog pin for plugin 1.2.4 (plugin-catalog/hindsight.yaml in
-# NousResearch/hermes-agent). Deliberately NOT renovate-tracked: a plugin bump is a code
-# review of what the agent runs, not a version bump, so re-pin it by hand.
-variable "HINDSIGHT_REF" {
-  default = "f14cc1eb5624b0374cb4d82768eb2e0b9c21ae24"
+# The plugin's own release tag (vectorize-io/hindsight tags each integration separately:
+# `integrations/hermes/v1.2.4`). Renovate tracks it through github-tags, so plugin releases
+# land as automergeable PRs like every other pin here; the versioning regex extracts the
+# semver from the tag and ignores the repo's own `vX.Y.Z` client/server tags.
+variable "HINDSIGHT_TAG" {
+  // renovate: datasource=github-tags depName=vectorize-io/hindsight versioning=regex:^integrations/hermes/v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$
+  default = "integrations/hermes/v1.2.4"
 }
 
 group "default" {
@@ -39,7 +41,7 @@ target "image" {
     VERSION                  = "${VERSION}"
     SOURCE_IMAGE             = "${SOURCE_IMAGE}"
     HINDSIGHT_CLIENT_VERSION = "${HINDSIGHT_CLIENT_VERSION}"
-    HINDSIGHT_REF            = "${HINDSIGHT_REF}"
+    HINDSIGHT_TAG            = "${HINDSIGHT_TAG}"
   }
   labels = {
     "org.opencontainers.image.source"   = "${SOURCE}"
