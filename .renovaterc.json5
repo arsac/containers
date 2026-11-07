@@ -23,9 +23,10 @@
         "/(^|/)docker-bake\\.hcl$/"
       ],
       "matchStrings": [
-        "default\\s*=\\s*\"(?<currentDigest>[0-9a-f]{40})\" // renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: packageName=(?<packageName>\\S+))? currentValue=(?<currentValue>\\S+)"
+        "default\\s*=\\s*\"(?<currentDigest>[0-9a-f]{40})\" // renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: packageName=(?<packageName>\\S+))?(?: versioning=(?<versioning>\\S+))? currentValue=(?<currentValue>\\S+)"
       ],
-      "datasourceTemplate": "{{{datasource}}}"
+      "datasourceTemplate": "{{{datasource}}}",
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
     }
   ],
   "packageRules": [
