@@ -162,9 +162,17 @@ deployment normally sets (model provider keys, gateway settings) is untouched by
 - **Supervision is upstream's.** The image inherits upstream's `s6-overlay` tree (gateway,
   dashboard, profile gateways) behind `/opt/hermes/docker/entrypoint-dispatch.sh`; it is
   not restructured here, and services log to stdout as upstream ships them.
-- Starting unprivileged skips the root-only parts of upstream's boot hook. Those print
-  warnings (`could not chown XDG_RUNTIME_DIR`, `dependency refresh failed; continuing`)
-  and the boot still exits 0 - nothing this image needs depends on them.
+- **`/run` belongs to `hermes` at build time**, so the supervised tree boots unprivileged.
+  s6-overlay's preinit only repairs `/run` by escalating through its setuid helper, and a
+  hardened pod denies that (`allowPrivilegeEscalation: false`, which is what
+  `no-new-privileges` means), so a root-owned `/run` aborts the boot with exit 100.
+  Owning it here is the "correctly prepared by the container manager" case preinit
+  documents; a root boot just chowns it back and behaves as upstream always did.
+- Starting unprivileged skips the root-only parts of upstream's boot hook. They print
+  warnings (`could not chown XDG_RUNTIME_DIR`, `dependency refresh failed; continuing`,
+  `could not chgrp .../supervise`) and one literal `s6-applyuidgid: fatal:` line from the
+  hook's own failed privilege drop. None of it stops the boot: the supervised tree comes
+  up, the dashboard reaches readiness, and nothing this image needs depends on them.
 - **On-demand dependency installation is off.** `HERMES_DISABLE_LAZY_INSTALLS=1` is the
   image-level bridge `pm` reads, set here for the same reason upstream's image sets it for its
   children: an implicit install (a plugin's packages, a skill's extras) is refused with "not
@@ -247,6 +255,14 @@ The manifest-wide dependency sweep that started life in the build is gone for th
 was never enough on its own: every dependency that matters at load is imported by one of the
 subtests, and the install itself is pinned by constraints (see above), so a second expression of
 it was just another thing to keep true.
+
+**The boot itself is a test case too.** Every check above is a `hermes ...` CLI call, and they all
+passed while the supervised entrypoint crash-looped in a hardened pod: the CLI path never touches
+`/run` or s6. `container_test.go` therefore boots the real entrypoint as `1000:1000` and as root,
+under `no-new-privileges` (a boot that only survives by escalating through s6's setuid helper
+crash-loops where this image is actually deployed), and asserts the dashboard logs
+`HERMES_DASHBOARD_READY`, that no preinit fatal appears, that the container stays up on its own,
+and that it is running as the uid it claims.
 
 ## Local development
 

@@ -28,9 +28,16 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # account's. Remapping the account to 1000:1000 here lets the container start unprivileged with
 # that entrypoint intact, and leaves /opt/data's ownership to whoever mounts it (fsGroup)
 # rather than to a root boot hook.
+# /run is handed to that account at build time, which is what s6-overlay calls "correctly
+# prepared by the container manager for a privilegeless execution": its preinit fixes /run only
+# by escalating through s6-overlay-suexec, and a hardened pod (no-new-privileges, which is what
+# allowPrivilegeEscalation: false sets) denies that, so the boot dies with exit 100 on a /run
+# still owned by root. Owning it here makes the unprivileged path work with no privilege to
+# spare, and a root boot simply chowns it back at preinit.
 RUN groupmod -o -g 1000 hermes \
  && usermod -o -u 1000 -g 1000 hermes \
- && chown -R hermes:hermes /opt/data
+ && chown -R hermes:hermes /opt/data \
+ && install -d -o hermes -g hermes -m 0755 /run
 
 # Plugin dependencies, from the uv upstream already ships (arch-suffixed path, so no second
 # copy is added): Hindsight's cloud client, pinned, and the OpenTelemetry packages hermes_otel
