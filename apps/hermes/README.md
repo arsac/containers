@@ -142,30 +142,37 @@ deployment normally sets (model provider keys, gateway settings) is untouched by
 | `hindsight-client` version       | `HINDSIGHT_CLIENT_VERSION` | Renovate (`datasource=pypi`)        |
 | `hindsight` plugin release tag   | `HINDSIGHT_TAG`            | Renovate (`datasource=github-tags`) |
 | `hermes_otel` plugin release tag | `HERMES_OTEL_TAG`          | Renovate (`datasource=github-tags`) |
-| `homeassistant` plugin commit    | `HOMEASSISTANT_REF`        | **Nothing, on purpose**             |
+| `homeassistant` plugin commit    | `HOMEASSISTANT_REF`        | Renovate (`datasource=git-refs`)    |
 
 Variable names say which kind of value they hold: `*_TAG` is an upstream release tag,
-`*_REF` is a commit, as `ATE_ENV_REF` is elsewhere in this repo.
+`*_REF` is a commit, as `ATE_ENV_REF` is elsewhere in this repo. The kind is not cosmetic -
+`hermes plugins install --ref` refuses anything but a full commit SHA, so a tag is resolved to
+its commit in the build (peeled tag line, printed for provenance), while a commit is used as
+it stands.
 
-The two plugin tags are automergeable - a plugin release arrives as a PR and ships on green
-CI. Both plugins tag their integrations on their own cadence (`integrations/hermes/vX.Y.Z`,
-`hermes-otel-vX.Y.Z`), so pinning a commit would only put a human with a git client in the
-loop. `homeassistant` is the exception: `NousResearch/hermes-official-plugins` publishes
-**no tags and no releases**, so there is no ref to follow and no automation to have; the pin
-is the commit the base image's own catalog ships (2.0.1, unchanged on main) and re-pinning it
-is a deliberate edit.
+The two plugin tags automerge: both repos tag their integrations on their own cadence
+(`integrations/hermes/vX.Y.Z`, `hermes-otel-vX.Y.Z`), so a release arrives as a PR and ships on
+green CI. `homeassistant` is the exception in kind, not in tracking:
+`NousResearch/hermes-official-plugins` publishes **no tags and no releases**, so its pin follows
+`main` and Renovate proposes a commit (a `digest` update). `.renovaterc.json5` holds commit pins
+for review, so that one PR waits for a human - the repo's stated policy for commit pins, since a
+digest PR cannot say what moved. Making it automerge too is a two-line change to the shared
+config (a `matchFileNames: apps/hermes/...` exception), not something this app can decide.
 
 Three things make unattended bumps safe rather than hopeful:
 
 - **A tag pin is a release ref**, never a branch head: the `versioning` regex only ever
-  proposes `integrations/hermes/vX.Y.Z` or `hermes-otel-vX.Y.Z`.
-- **Every pin is content-addressed in the build.** `hermes plugins install --ref` accepts
-  only a full commit SHA, so each tag is resolved to its commit (`git ls-remote`, peeled tag
-  line), installed by that SHA, and printed in the build log for provenance; the installed
-  `plugin.yaml` must carry the tag's version.
-- **The build checks every plugin's declared requirements against what the image installed**,
-  so a release that needs a newer client - or a new dependency we do not install - fails the
-  build instead of shipping a plugin that errors on load.
+  proposes `integrations/hermes/vX.Y.Z` or `hermes-otel-vX.Y.Z`, and `main` is the only branch
+  followed anywhere here.
+- **Every pin is content-addressed in the build**, and a tag that does not point at the version
+  it claims fails the build.
+- **The build checks each plugin's `requires_hermes` against the base image's version, and every
+  declared requirement against what the image installed.** A plugin release that outruns the
+  base image, needs a newer client, or introduces a dependency we do not install fails the build
+  instead of shipping something that errors on load. That check is what keeps plugin bumps and
+  the base image aligned without a human reading release notes: it has already refused one real
+  case during development (a `tzdata` requirement in a newer `homeassistant` commit, which only
+  applies on Windows and is now correctly skipped by its marker).
 
 `hindsight-client` is pinned inside the plugin's declared window, currently `>=0.10.1,<2`.
 The floor is not cosmetic: 0.10.0's probe ran `asyncio.run` on the caller's thread, so the
@@ -177,11 +184,10 @@ requirements, before the venv is touched.
 
 ## Build-time assertions
 
-The Dockerfile fails the build if a plugin is not where its kind is discovered, if any
-declared requirement is missing or unsatisfied, if installing the plugin dependencies changed
-a package that was already in the venv, or if a tag does not point at the version it claims.
-It is not possible to publish an image that quietly has no memory backend, or one whose
-plugins would error on load.
+The Dockerfile fails the build if a plugin is not where its kind is discovered, if it requires a
+newer hermes than this image carries, if any declared requirement is missing or unsatisfied, or
+if a tag does not point at the version it claims. It is not possible to publish an image that
+quietly has no memory backend, or one whose plugins would error on load.
 
 ## Local development
 

@@ -22,30 +22,28 @@ variable "HINDSIGHT_CLIENT_VERSION" {
   default = "1.2.0"
 }
 
-# Pin naming: `*_TAG` holds an upstream release tag, which the Dockerfile resolves to a commit
-# before installing (`plugins install --ref` accepts only a full SHA); `*_REF` holds the commit
-# itself, as `ATE_ENV_REF` does elsewhere in this repo.
+# Pin naming: `*_TAG` holds an upstream release tag, which the build resolves to its commit
+# before installing (`plugins install --ref` accepts only a full SHA); `*_REF` holds the commit,
+# as `ATE_ENV_REF` does elsewhere in this repo.
 
-# The plugin's own release tag (vectorize-io/hindsight tags each integration separately:
-# `integrations/hermes/v1.2.4`). Renovate tracks it through github-tags, so plugin releases
-# land as automergeable PRs like every other pin here; the versioning regex extracts the
-# semver from the tag and ignores the repo's own `vX.Y.Z` client/server tags.
+# vectorize-io/hindsight tags each integration separately, and the repo's own `vX.Y.Z`
+# client/server tags do not match this regex, so only integration releases are proposed.
 variable "HINDSIGHT_TAG" {
   // renovate: datasource=github-tags depName=vectorize-io/hindsight versioning=regex:^integrations/hermes/v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$
   default = "integrations/hermes/v1.2.4"
 }
 
-# Same pattern for the telemetry plugin, whose repo tags `hermes-otel-vX.Y.Z` and nothing else.
+# hermes-otel tags `hermes-otel-vX.Y.Z` and nothing else.
 variable "HERMES_OTEL_TAG" {
   // renovate: datasource=github-tags depName=briancaffey/hermes-otel versioning=regex:^hermes-otel-v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$
   default = "hermes-otel-v1.32.5"
 }
 
-# Commit pin: NousResearch/hermes-official-plugins publishes no tags and no releases, so there
-# is nothing for Renovate to follow. The value is the commit the base image's plugin catalog
-# ships (homeassistant 2.0.1); re-pinning it is a deliberate edit.
+# NousResearch/hermes-official-plugins publishes no tags and no releases, so this pin follows
+# the repo's `main` and Renovate proposes a digest update per commit - the shape commit pins
+# take elsewhere in this repo. Those are held for review by .renovaterc.json5's own rule.
 variable "HOMEASSISTANT_REF" {
-  default = "4d492b1dc5326af3e38bb2cf3e4b9ad6d65f0072"
+  default = "13b2c1c9c8204bf333df240b2aacf98c3e6250b7" // renovate: datasource=git-refs depName=NousResearch/hermes-official-plugins packageName=https://github.com/NousResearch/hermes-official-plugins currentValue=main
 }
 
 group "default" {
