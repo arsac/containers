@@ -182,12 +182,23 @@ the venv's existing pins are passed to uv as **constraints**: a range that would
 downgrade anything Hermes already pinned is refused by the resolver, naming both conflicting
 requirements, before the venv is touched.
 
-## Build-time assertions
+## What is checked, and where
 
-The Dockerfile fails the build if a plugin is not where its kind is discovered, if it requires a
-newer hermes than this image carries, if any declared requirement is missing or unsatisfied, or
-if a tag does not point at the version it claims. It is not possible to publish an image that
-quietly has no memory backend, or one whose plugins would error on load.
+The build checks what only a build can: that each plugin lands where its kind is discovered, and
+that each release tag resolves to a commit whose manifest carries the version the tag claims.
+
+Whether a plugin still **loads** is asserted by `apps/hermes/container_test.go` against the built
+image: `requires_hermes` against the hermes version this image reports, the plugin's imports, its
+hook or tool registration, and provider availability. That split is deliberate - the release
+workflow runs those tests before it publishes anything (this app has no Forgejo target, and the
+GitHub build loads the image and runs `go test` whenever a `container_test.go` exists), so a
+published image cannot be one that failed to load. A laptop build that skips the tests can be, and
+that is the accepted trade for keeping the logic in the test file rather than in the Dockerfile.
+
+The manifest-wide dependency sweep that started life in the build is gone for the same reason it
+was never enough on its own: every dependency that matters at load is imported by one of the
+subtests, and the install itself is pinned by constraints (see above), so a second expression of
+it was just another thing to keep true.
 
 ## Local development
 

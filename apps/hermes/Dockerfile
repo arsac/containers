@@ -100,64 +100,9 @@ RUN printf '%s\n' "${HOMEASSISTANT_REF}" | grep -Eqx '[0-9a-f]{40}' \
  && rm -rf /opt/hermes-seed \
  && grep -qx "kind: platform" /opt/hermes/plugins/platforms/homeassistant/plugin.yaml
 
-# Build-time assertions: every plugin is where its kind is discovered, it loads on the hermes
-# version in this image (`requires_hermes`), and everything it declares is installed at a
-# satisfying version. A plugin release that outruns the base image, or that needs a dependency
-# we do not install, fails here instead of shipping something that errors on load.
-RUN /opt/hermes/.venv/bin/python - "${VERSION#v}" <<'PY'
-import importlib.metadata as metadata
-import sys
-import tomllib
-from pathlib import Path
-
-import yaml
-from packaging.requirements import Requirement
-from packaging.specifiers import SpecifierSet
-from packaging.version import Version
-
-# hindsight-embed is only for local_embedded mode, which this image does not run.
-OPTIONAL = ("hindsight-embed",)
-PLUGINS = (
-    Path("/opt/hermes/plugins/memory/hindsight"),
-    Path("/opt/hermes/plugins/hermes_otel"),
-    Path("/opt/hermes/plugins/platforms/homeassistant"),
-)
-
-hermes = Version(sys.argv[1])
-
-
-def manifest_of(directory):
-    return yaml.safe_load((directory / "plugin.yaml").read_text()) or {}
-
-
-def declared(directory):
-    """Requirements a plugin declares, from its pyproject (preferred by Hermes' installer) or
-    from python_dependencies in its manifest (the only place hermes_otel declares them)."""
-    project = directory / "pyproject.toml"
-    if project.exists():
-        yield from tomllib.loads(project.read_text())["project"].get("dependencies") or ()
-    yield from manifest_of(directory).get("python_dependencies") or ()
-
-
-for plugin in PLUGINS:
-    manifest = manifest_of(plugin)
-    floor = manifest.get("requires_hermes")
-    if floor and hermes not in SpecifierSet(str(floor)):
-        raise SystemExit(f"{plugin.name} {manifest.get('version')} requires hermes {floor}, this image is {hermes}")
-    print(f"{plugin.name} {manifest.get('version')} on hermes {hermes} (requires {floor or 'nothing'})")
-    for raw in declared(plugin):
-        requirement = Requirement(raw)
-        if requirement.marker is not None and not requirement.marker.evaluate():
-            continue  # e.g. tzdata, which homeassistant needs on Windows only
-        try:
-            installed = metadata.version(requirement.name)
-        except metadata.PackageNotFoundError:
-            if requirement.name in OPTIONAL:
-                print(f"  {requirement.name} not installed, optional ({raw})")
-                continue
-            raise SystemExit(f"  {requirement.name} is declared but not installed ({raw})")
-        if installed not in requirement.specifier:
-            raise SystemExit(f"  {requirement.name} {installed} does not satisfy {raw}")
-PY
+# What a build alone can check is checked here: each plugin is where its kind is discovered, and
+# each tag points at the version it claims. Whether a plugin still *loads* - its declared
+# `requires_hermes`, its imports, its registrations - is asserted by container_test.go against
+# this image, because the release workflow runs those tests before it publishes anything.
 
 USER 1000:1000
