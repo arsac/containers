@@ -1,1 +1,5 @@
 *.toml
+
+# Renovate's config is strict JSON - it declares an editor $schema and is read by jq and schema
+# tooling - while oxfmt's JSON5 output (unquoted keys, trailing commas) breaks every one of them.
+*.json5

@@ -1,7 +1,10 @@
 package main
 
 import (
+	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	helpers "github.com/arsac/containers/tests"
 )
@@ -36,6 +39,37 @@ func Test(t *testing.T) {
 			"HINDSIGHT_MODE":    "local_external",
 			"HINDSIGHT_API_URL": "http://hindsight.invalid:8888",
 		})
+	})
+	t.Run("home assistant plugin discovered", func(t *testing.T) {
+		// A bundled platform loads without a plugins.enabled entry.
+		helpers.RequireCommandSucceeds(t, image, nil, `/bin/sh`, `-c`,
+			`hermes plugins list | grep -qE 'homeassistant +│ enabled'`)
+	})
+	t.Run("home assistant toolset registered", func(t *testing.T) {
+		helpers.RequireCommandSucceeds(t, image, nil, `/bin/sh`, `-c`,
+			`hermes tools list | grep -q homeassistant`)
+	})
+	t.Run("otel plugin imports and registers its hooks", func(t *testing.T) {
+		script := `doctor="$(hermes plugins doctor /opt/hermes/plugins/hermes_otel)"
+printf '%s\n' "$doctor" | grep -qE 'registration passed' &&
+  printf '%s\n' "$doctor" | grep -qE 'registrations: .*[1-9][0-9]* hook'`
+		helpers.RequireCommandSucceeds(t, image, nil, `/bin/sh`, `-c`, script)
+	})
+	t.Run("otel dependencies import", func(t *testing.T) {
+		helpers.RequireCommandSucceeds(t, image, nil, `/opt/hermes/.venv/bin/python`, `-c`,
+			`import opentelemetry.sdk, opentelemetry.exporter.otlp.proto.http, opentelemetry.exporter.otlp.proto.grpc, yaml`)
+	})
+	t.Run("otel plugin loads once enabled", func(t *testing.T) {
+		// Hooks are not a default-on kind, so the deployment has to name it.
+		script := `hermes plugins list | grep -qE 'hermes_otel +│ not enabled'
+printf 'plugins:\n  enabled: [hermes_otel]\n' > "$HERMES_HOME/config.yaml"
+hermes plugins list | grep -qE 'hermes_otel +│ enabled'`
+		helpers.RequireCommandSucceeds(t, image, nil, `/bin/sh`, `-c`, script)
+	})
+	t.Run("plugins support the bundled hermes version", func(t *testing.T) {
+		script, err := os.ReadFile("plugin_compat.py")
+		require.NoError(t, err)
+		helpers.RequireCommandSucceeds(t, image, nil, `/opt/hermes/.venv/bin/python`, `-c`, string(script))
 	})
 }
 
