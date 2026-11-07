@@ -182,10 +182,24 @@ deployment normally sets (model provider keys, gateway settings) is untouched by
   `s6-setuidgid hermes` failing to set supplementary groups when the hook already runs as
   `1000` (as root it logs `[stage2] dependency environment: base` instead), and it installs
   nothing either way.
-- Hermes also prints `install out of sync (venv: out of sync with uv.lock)` before command
-  output. That is its stamp check comparing the venv against upstream's `uv.lock`, which no
-  longer describes a venv this image added plugin dependencies to. It is a diagnostic, not an
-  error, and it does not appear in the base image.
+- **The dependency state is recorded at boot**, not baked: `03-hermes-dependency-state` writes
+  pm's venv fact into `$HERMES_HOME/installs/<install key>/` when it differs from the one this
+  image implies. It has to live there - that is the copy pm's worker rewrites, and `/opt/hermes`
+  is read-only, so a record baked into the image cannot be refreshed and a probe that finds no
+  usable record reports the memory provider as unavailable.
+- **Name the shipped plugins in `plugins.enabled`.** pm only sees a bundled plugin through that
+  key: `memory.provider` resolves providers under `$HERMES_HOME/plugins`, so a bundled one never
+  joins its selection. With the three listed:
+
+  ```yaml
+  plugins:
+    enabled: [memory/hindsight, platforms/homeassistant, hermes_otel]
+  ```
+
+  the recorded stamp matches what the dashboard asks about, and `hermes ...` stops printing
+  `install out of sync (venv: out of sync with uv.lock)` - which is the same fact, seen from the
+  CLI. A selection that differs from the image's makes pm report stale dependencies, which is
+  exactly what it should say.
 
 ## Pins
 
@@ -232,9 +246,16 @@ Three things make unattended bumps safe rather than hopeful:
 The floor is not cosmetic: 0.10.0's probe ran `asyncio.run` on the caller's thread, so the
 next client call failed against a dead aiohttp session. `hermes_otel`'s OpenTelemetry
 packages are installed from the plugin's own declared ranges, which travel with the pinned
-commit, and the venv's existing pins are passed to uv as **constraints**: a range that would
-upgrade or downgrade anything Hermes already pinned is refused by the resolver, naming both
-conflicting requirements, before the venv is touched.
+commit.
+
+The venv itself is built by pm's own builder, the way upstream's Dockerfile builds it: the
+locked extras are exported (`pm.build_env --export-requirements`), the plugins' requirements are
+appended, and one `pm.build_env --sealed --lock` build produces the environment, which is why
+`uv.lock`'s pins still govern. `--record-selection` cannot be used (build_env refuses it
+alongside `--requirements`), so the record it would have written is written by the boot hook
+described under Runtime. The result compared against the base image's venv is upstream's set
+plus exactly four packages - `hindsight-client`, `aiohttp-retry`, `PyYAML` and
+`opentelemetry-exporter-otlp-proto-grpc` - with no version of an existing package moved.
 
 ## What is checked, and where
 
@@ -244,8 +265,10 @@ under the manifest name/kind it should have.
 Whether a plugin still **loads** is asserted by `apps/hermes/container_test.go` against the built
 image: `requires_hermes` against the hermes version this image reports - swept over every bundled
 manifest, so there is no list of names to keep in step with the Dockerfile - plus the plugins'
-imports, hook/tool registration, provider availability, and that the venv refuses on-demand
-installations. That split is deliberate - the release
+imports, hook/tool registration, provider availability, that the venv refuses on-demand
+installations, and - in the booted container, where the record exists - that `pm.venv_is_current()`
+holds and the dashboard's `dependencies_installed` for hindsight is true. That split is
+deliberate - the release
 workflow runs those tests before it publishes anything (this app has no Forgejo target, and the
 GitHub build loads the image and runs `go test` whenever a `container_test.go` exists), so a
 published image cannot be one that failed to load. A laptop build that skips the tests can be, and

@@ -39,32 +39,42 @@ RUN groupmod -o -g 1000 hermes \
  && chown -R hermes:hermes /opt/data \
  && install -d -o hermes -g hermes -m 0755 /run
 
-# Plugin dependencies, from the uv upstream already ships (arch-suffixed path, so no second
-# copy is added): Hindsight's cloud client, pinned, and the OpenTelemetry packages hermes_otel
-# declares, taken from the plugin's own ranges since they travel with the pinned commit.
-# `hermes plugins install --yes-deps` is deliberately not used for them: it resolves into a
-# package-manager generation under $HERMES_HOME/installs, which a volume mounted over /opt/data
-# erases at runtime. What must not happen is an existing Hermes pin moving, so the
-# environment's own pins are handed to the resolver as constraints: a spec that would upgrade
-# or downgrade anything already installed is refused by uv, with the two conflicting
-# requirements named, before the venv is touched.
-# No PIP_*/UV_* prologue here, unlike home-operations' python images: those bring their own
-# Python toolchain, this image inherits upstream's (which already sets PYTHONUNBUFFERED and
-# PYTHONDONTWRITEBYTECODE) and never calls pip. Their `--only-binary` habit is kept: every one
-# of these must resolve to a wheel, so nothing is compiled at build time and no plugin can
-# quietly start depending on a compiler that will not exist at runtime.
-RUN uv="$(echo /opt/hermes/tools/uv-*/uv)" \
- && "$uv" pip freeze --python /opt/hermes/.venv/bin/python \
-      | grep -E '^[A-Za-z0-9_.-]+==' > /tmp/venv-constraints.txt \
- && "$uv" pip install --no-cache --only-binary=:all: --python /opt/hermes/.venv/bin/python \
-      -c /tmp/venv-constraints.txt \
+# Plugin dependencies, as requirements resolved into the same environment as the core extras.
+# Hindsight's cloud client is pinned; the OpenTelemetry packages and aiohttp travel with the
+# plugins' own ranges. `hindsight-embed`, which hindsight's declaration also names, is
+# deliberately absent: `local_embedded` is not a mode this image supports (see README).
+# `hermes plugins install --yes-deps` is not used for them: it resolves into a package-manager
+# generation under $HERMES_HOME/installs, which a volume mounted over /opt/data erases at
+# runtime.
+#
+# The environment is built by upstream's own builder, in the two calls its own Dockerfile makes
+# possible: `--export-requirements` for the locked extras it ships, then one requirement-set
+# build that adds the plugins' packages, `--sealed` so the runtime carries no build-time path
+# references, and `--lock` so the project lock's pins still govern. `--requirements` and `--extra`
+# are mutually exclusive modes in build_env, which is why the locked extras are exported first.
+# Rebuilt rather than installed into: the venv carries a relative `hermes-agent.pth` source
+# binding ("../../../..") that only resolves at /opt/hermes/.venv, and `docker.build_agent` is
+# what writes it back. The extras mirror upstream's Dockerfile at this pin; they are passed
+# explicitly so the record below claims exactly what was installed.
+RUN printf '%s\n' \
       "hindsight-client==${HINDSIGHT_CLIENT_VERSION}" \
       "opentelemetry-api>=1.35,<2" \
       "opentelemetry-sdk>=1.35,<2" \
       "opentelemetry-exporter-otlp-proto-http>=1.35,<2" \
       "opentelemetry-exporter-otlp-proto-grpc>=1.35,<2" \
-      "PyYAML>=6,<7" \
- && rm -f /tmp/venv-constraints.txt
+      "PyYAML>=6,<7" > /tmp/plugin-requirements.txt \
+ && set -- all messaging otlp anthropic bedrock azure-identity matrix google-chat fal documents \
+ && extras=() && for extra in "$@"; do extras+=(--extra "$extra"); done \
+ && /usr/local/bin/python3 -m pm.build_env --source /opt/hermes --python /usr/local/bin/python3 \
+      --cache /opt/hermes/uv-cache --export-requirements /tmp/core-requirements.txt "${extras[@]}" \
+ && cat /tmp/core-requirements.txt /tmp/plugin-requirements.txt > /tmp/all-requirements.txt \
+ && rm -rf /opt/hermes/.venv \
+ && /usr/local/bin/python3 -m pm.build_env --out /opt/hermes/.venv --sealed \
+      --lock /opt/hermes/uv.lock --requirements /tmp/all-requirements.txt \
+      --python /usr/local/bin/python3 --cache /opt/hermes/uv-cache \
+ && /opt/hermes/.venv/bin/python -m docker.build_agent \
+ && printf '%s\n' "$@" > /opt/hermes/dependency-extras.txt \
+ && rm -f /tmp/plugin-requirements.txt /tmp/core-requirements.txt /tmp/all-requirements.txt
 
 # Plugins. `hermes plugins install` commits the plugin directory in one admission transaction and
 # `--ref` takes the commit itself, which is what the pins hold - so the build resolves nothing
@@ -102,6 +112,14 @@ RUN printf '%s\n' "${HOMEASSISTANT_REF}" | grep -Eqx '[0-9a-f]{40}' \
  && mv /opt/hermes-seed/plugins/homeassistant /opt/hermes/plugins/platforms/homeassistant \
  && rm -rf /opt/hermes-seed \
  && grep -qx "kind: platform" /opt/hermes/plugins/platforms/homeassistant/plugin.yaml
+
+# The dependency record is written at boot, not here: pm's *runtime* facts live under
+# $HERMES_HOME/installs/<install key>/, which is where the worker can rewrite them. A record
+# baked into the read-only store cannot be refreshed there, and a probe that finds no usable
+# record must write one - which is the crash the dashboard shows as "unavailable". The step is
+# a cont-init script (upstream's own hook point), it writes only when the recorded stamp differs
+# from the one this image implies, and it uses the extras list this build installed.
+COPY cont-init.d/ /etc/cont-init.d/
 
 # What a build alone can check is checked here: each plugin is where its kind is discovered, and
 # each tag points at the version it claims. Whether a plugin still *loads* - its declared

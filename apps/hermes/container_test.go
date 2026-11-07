@@ -72,13 +72,19 @@ hermes plugins list | grep -qE 'hermes_otel +│ enabled'`
 			`from pm.install import lazy_installs_allowed as f; assert not f()`)
 	})
 	t.Run("boots the supervised tree unprivileged", func(t *testing.T) {
-		helpers.RequireBoots(t, image, helpers.BootConfig{
+		booted := helpers.RequireBoots(t, image, helpers.BootConfig{
 			User:      "1000:1000",
 			Cmd:       servedCommand,
 			Env:       dashboardEnv,
 			Ready:     `HERMES_DASHBOARD_READY port=`,
 			Forbidden: bootFatals,
 		})
+		// The boot hook records the dependency state, which is what these two read: pm's stamp
+		// for the shipped union, and the dashboard field rendered from it.
+		helpers.RequireExecSucceeds(t, booted, `/bin/sh`, `-c`,
+			shippedPluginsConfig+`/opt/hermes/.venv/bin/python -c 'import pm; assert pm.venv_is_current()'`)
+		helpers.RequireExecSucceeds(t, booted, `/bin/sh`, `-c`, shippedPluginsConfig+
+			`/opt/hermes/.venv/bin/python -c 'from hermes_cli.web_server_memory import _memory_provider_setup_info as f; assert f("hindsight")["dependencies_installed"] is True'`)
 	})
 	t.Run("boots the supervised tree as root", func(t *testing.T) {
 		// Root is still upstream's default and a legitimate deployment; the /run fix must not
@@ -97,6 +103,11 @@ hermes plugins list | grep -qE 'hermes_otel +│ enabled'`
 		helpers.RequireCommandSucceeds(t, image, nil, `/opt/hermes/.venv/bin/python`, `-c`, string(script))
 	})
 }
+
+// shippedPluginsConfig is the selection the README requires. pm sees a bundled plugin only
+// through plugins.enabled (`memory.provider` looks providers up under $HERMES_HOME/plugins), and
+// the image's dependency record is stamped for exactly this union, so the two agree.
+const shippedPluginsConfig = `printf 'plugins:\n  enabled: [memory/hindsight, platforms/homeassistant, hermes_otel]\n' > "$HERMES_HOME/config.yaml"` + "\n"
 
 // bootFatals abort s6-overlay before any service starts. `s6-applyuidgid: fatal:` is deliberately
 // not here: it is upstream's boot hook failing to drop privileges it does not need when it is
