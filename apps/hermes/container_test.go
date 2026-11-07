@@ -1,7 +1,10 @@
 package main
 
 import (
+	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	helpers "github.com/arsac/containers/tests"
 )
@@ -64,34 +67,9 @@ hermes plugins list | grep -qE 'hermes_otel +│ enabled'`
 		helpers.RequireCommandSucceeds(t, image, nil, `/bin/sh`, `-c`, script)
 	})
 	t.Run("plugins support the bundled hermes version", func(t *testing.T) {
-		// requires_hermes in every bundled manifest vs the version this image reports - no list to
-		// maintain, and it covers the base image's own plugins too. This is what keeps an
-		// unattended plugin bump aligned with the base image.
-		script := `/opt/hermes/.venv/bin/python - <<'PY'
-import re
-import subprocess
-from pathlib import Path
-
-import yaml
-from packaging.specifiers import SpecifierSet
-from packaging.version import Version
-
-reported = subprocess.run(
-    ["/opt/hermes/.venv/bin/hermes", "--version"], capture_output=True, text=True, check=True
-).stdout
-hermes = Version(re.search(r"v(\d+\.\d+\.\d+)", reported).group(1))
-root = Path("/opt/hermes/plugins")
-manifests = sorted(root.glob("*/plugin.yaml")) + sorted(root.glob("*/*/plugin.yaml"))
-checked = 0
-for manifest in manifests:
-    declared = yaml.safe_load(manifest.read_text()) or {}
-    floor = declared.get("requires_hermes")
-    if floor and hermes not in SpecifierSet(str(floor)):
-        raise SystemExit(f"{manifest.parent} requires hermes {floor}, this image is {hermes}")
-    checked += 1
-print(f"{checked} bundled plugins support hermes {hermes}")
-PY`
-		helpers.RequireCommandSucceeds(t, image, nil, `/bin/sh`, `-c`, script)
+		script, err := os.ReadFile("plugin_compat.py")
+		require.NoError(t, err)
+		helpers.RequireCommandSucceeds(t, image, nil, `/opt/hermes/.venv/bin/python`, `-c`, string(script))
 	})
 }
 
