@@ -29,16 +29,6 @@ variable "HINDSIGHT_REF" {
   default = "f14cc1eb5624b0374cb4d82768eb2e0b9c21ae24"
 }
 
-# Injected by the Forgejo publish workflow (internal registry host/arsac).
-variable "REGISTRY" {
-  default = ""
-}
-
-# Dated calver tag set by the publish workflow (e.g. 2026.07.01-<sha7>).
-variable "TAG" {
-  default = ""
-}
-
 group "default" {
   targets = ["image-local"]
 }
@@ -66,14 +56,4 @@ target "image-local" {
 target "image-all" {
   inherits  = ["image"]
   platforms = ["linux/amd64", "linux/arm64"]
-}
-
-# Built + pushed by the in-cluster Forgejo runner to the internal registry.
-# Inherits image-all's platforms (amd64,arm64); only adds the registry tags.
-target "forgejo" {
-  inherits = ["image-all"]
-  tags = [
-    "${REGISTRY}/${APP}:${TAG}",
-    "${REGISTRY}/${APP}:${VERSION}",
-  ]
 }
