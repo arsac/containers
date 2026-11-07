@@ -39,17 +39,23 @@ RUN groupmod -o -g 1000 hermes \
 # environment's own pins are handed to the resolver as constraints: a spec that would upgrade
 # or downgrade anything already installed is refused by uv, with the two conflicting
 # requirements named, before the venv is touched.
+# No PIP_*/UV_* prologue here, unlike home-operations' python images: those bring their own
+# Python toolchain, this image inherits upstream's (which already sets PYTHONUNBUFFERED and
+# PYTHONDONTWRITEBYTECODE) and never calls pip. Their `--only-binary` habit is kept: every one
+# of these must resolve to a wheel, so nothing is compiled at build time and no plugin can
+# quietly start depending on a compiler that will not exist at runtime.
 RUN uv="$(echo /opt/hermes/tools/uv-*/uv)" \
  && "$uv" pip freeze --python /opt/hermes/.venv/bin/python \
       | grep -E '^[A-Za-z0-9_.-]+==' > /tmp/venv-constraints.txt \
- && "$uv" pip install --no-cache --python /opt/hermes/.venv/bin/python \
+ && "$uv" pip install --no-cache --only-binary=:all: --python /opt/hermes/.venv/bin/python \
       -c /tmp/venv-constraints.txt \
       "hindsight-client==${HINDSIGHT_CLIENT_VERSION}" \
       "opentelemetry-api>=1.35,<2" \
       "opentelemetry-sdk>=1.35,<2" \
       "opentelemetry-exporter-otlp-proto-http>=1.35,<2" \
       "opentelemetry-exporter-otlp-proto-grpc>=1.35,<2" \
-      "PyYAML>=6,<7"
+      "PyYAML>=6,<7" \
+ && rm -f /tmp/venv-constraints.txt
 
 # Plugins. `hermes plugins install` commits the plugin directory in one admission transaction;
 # `--ref` accepts only a full commit SHA, so each release tag is resolved first (peeled tag
