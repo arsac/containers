@@ -66,6 +66,11 @@ printf 'plugins:\n  enabled: [hermes_otel]\n' > "$HERMES_HOME/config.yaml"
 hermes plugins list | grep -qE 'hermes_otel +│ enabled'`
 		helpers.RequireCommandSucceeds(t, image, nil, `/bin/sh`, `-c`, script)
 	})
+	t.Run("lazy installs are closed", func(t *testing.T) {
+		// The venv is baked; pm must refuse to add to it on demand.
+		helpers.RequireCommandSucceeds(t, image, nil, `/opt/hermes/.venv/bin/python`, `-c`,
+			`from pm.install import lazy_installs_allowed as f; assert not f()`)
+	})
 	t.Run("plugins support the bundled hermes version", func(t *testing.T) {
 		script, err := os.ReadFile("plugin_compat.py")
 		require.NoError(t, err)

@@ -138,7 +138,9 @@ a URL.
 `local_embedded` is the one mode this image **cannot** run: it needs `hindsight-embed` and a
 Hindsight server process started inside the container (downloaded on first use, plus an LLM
 key and a writable home), which is deliberately not installed. Asked for it, the provider
-reports itself unavailable instead of failing every turn. Everything else in `HERMES_HOME` the
+reports itself unavailable instead of failing every turn. The dashboard still offers the mode
+as a choice; picking it there lands on the same refusal. Supported modes are `cloud` and
+`local_external`. Everything else in `HERMES_HOME` the
 deployment normally sets (model provider keys, gateway settings) is untouched by this image.
 
 ## Runtime
@@ -146,9 +148,15 @@ deployment normally sets (model provider keys, gateway settings) is untouched by
 - **User `1000:1000`.** The group and user `hermes` are remapped from upstream's `10000` at
   build time, because upstream's entrypoint rejects a `--user` UID that is not its own
   account's. Do not override the user with a different UID.
-- **`/opt/data` is a volume and its ownership is the cluster's business.** The image does
-  not chown it at start and does not depend on owning it: mount it with an `fsGroup` that
-  can write, and the upstream bootstrap (config seeding, skills sync) runs as `1000`.
+- **Run as `1000:1000` with `fsGroup: 1000`, and chown an inherited volume once.** A volume
+  first populated by upstream's image carries `10000` uids. `fsGroup` only ever fixes the
+  _group_, so those files end up `10000:1000` and the gateway cannot write `state.db` or
+  `auth.json` - which presents as a crash loop rather than as a permission error. One
+  `chown -R 1000:1000` on the volume settles it; a fresh volume needs nothing, and the image
+  never chowns `/opt/data` itself.
+- **`HERMES_HOME=/opt/data`, pointing at that volume.** The plugins live in the bundled tree
+  under `/opt/hermes`; config, secrets, sessions and `state.db` live on the volume. Pointing
+  `HERMES_HOME` anywhere else detaches the state from the deployment.
 - **`/opt/hermes` stays root-owned and read-only**, which is upstream's immutability
   property: the agent cannot modify its installed source, venv, or plugins.
 - **Supervision is upstream's.** The image inherits upstream's `s6-overlay` tree (gateway,
@@ -157,6 +165,15 @@ deployment normally sets (model provider keys, gateway settings) is untouched by
 - Starting unprivileged skips the root-only parts of upstream's boot hook. Those print
   warnings (`could not chown XDG_RUNTIME_DIR`, `dependency refresh failed; continuing`)
   and the boot still exits 0 - nothing this image needs depends on them.
+- **On-demand dependency installation is off.** `HERMES_DISABLE_LAZY_INSTALLS=1` is the
+  image-level bridge `pm` reads, set here for the same reason upstream's image sets it for its
+  children: an implicit install (a plugin's packages, a skill's extras) is refused with "not
+  installed and lazy installs are disabled", pointing at `security.allow_lazy_installs` /
+  `hermes pm install`. Dependencies arrive at build time; `container_test.go` asserts the flag
+  is in force. It does not silence the boot's `dependency refresh failed; continuing`: that is
+  `s6-setuidgid hermes` failing to set supplementary groups when the hook already runs as
+  `1000` (as root it logs `[stage2] dependency environment: base` instead), and it installs
+  nothing either way.
 - Hermes also prints `install out of sync (venv: out of sync with uv.lock)` before command
   output. That is its stamp check comparing the venv against upstream's `uv.lock`, which no
   longer describes a venv this image added plugin dependencies to. It is a diagnostic, not an
@@ -219,7 +236,8 @@ under the manifest name/kind it should have.
 Whether a plugin still **loads** is asserted by `apps/hermes/container_test.go` against the built
 image: `requires_hermes` against the hermes version this image reports - swept over every bundled
 manifest, so there is no list of names to keep in step with the Dockerfile - plus the plugins'
-imports, hook/tool registration, and provider availability. That split is deliberate - the release
+imports, hook/tool registration, provider availability, and that the venv refuses on-demand
+installations. That split is deliberate - the release
 workflow runs those tests before it publishes anything (this app has no Forgejo target, and the
 GitHub build loads the image and runs `go test` whenever a `container_test.go` exists), so a
 published image cannot be one that failed to load. A laptop build that skips the tests can be, and
