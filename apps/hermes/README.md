@@ -170,9 +170,10 @@ Three things make unattended bumps safe rather than hopeful:
 `hindsight-client` is pinned inside the plugin's declared window, currently `>=0.10.1,<2`.
 The floor is not cosmetic: 0.10.0's probe ran `asyncio.run` on the caller's thread, so the
 next client call failed against a dead aiohttp session. `hermes_otel`'s OpenTelemetry
-packages are installed from the plugin's own declared ranges, which travel with the tag; the
-build compares a `pip freeze` taken before and after and fails if any package that was
-already installed moved, so a floating range cannot quietly bend a Hermes pin.
+packages are installed from the plugin's own declared ranges, which travel with the tag, and
+the venv's existing pins are passed to uv as **constraints**: a range that would upgrade or
+downgrade anything Hermes already pinned is refused by the resolver, naming both conflicting
+requirements, before the venv is touched.
 
 ## Build-time assertions
 

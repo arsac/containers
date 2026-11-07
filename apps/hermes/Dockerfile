@@ -36,33 +36,20 @@ RUN groupmod -o -g 1000 hermes \
 # `hermes plugins install --yes-deps` is deliberately not used for them: it resolves into a
 # package-manager generation under $HERMES_HOME/installs, which a volume mounted over
 # /opt/data erases at runtime. What must not happen is an existing Hermes pin moving, so the
-# freeze is compared and any change to an already-installed package fails the build.
+# environment's own pins are handed to the resolver as constraints: a spec that would upgrade
+# or downgrade anything already installed is refused by uv, with the two conflicting
+# requirements named, before the venv is touched.
 RUN uv="$(echo /opt/hermes/tools/uv-*/uv)" \
- && "$uv" pip freeze --python /opt/hermes/.venv/bin/python > /tmp/venv-before.txt \
+ && "$uv" pip freeze --python /opt/hermes/.venv/bin/python \
+      | grep -E '^[A-Za-z0-9_.-]+==' > /tmp/venv-constraints.txt \
  && "$uv" pip install --no-cache --python /opt/hermes/.venv/bin/python \
+      -c /tmp/venv-constraints.txt \
       "hindsight-client==${HINDSIGHT_CLIENT_VERSION}" \
       "opentelemetry-api>=1.35,<2" \
       "opentelemetry-sdk>=1.35,<2" \
       "opentelemetry-exporter-otlp-proto-http>=1.35,<2" \
       "opentelemetry-exporter-otlp-proto-grpc>=1.35,<2" \
-      "PyYAML>=6,<7" \
- && "$uv" pip freeze --python /opt/hermes/.venv/bin/python > /tmp/venv-after.txt \
- && /opt/hermes/.venv/bin/python - <<'PY'
-from pathlib import Path
-
-
-def freeze(path):
-    pairs = (line.partition("==")[::2] for line in Path(path).read_text().split())
-    return {name.lower(): version for name, version in pairs if version}
-
-
-before, after = freeze("/tmp/venv-before.txt"), freeze("/tmp/venv-after.txt")
-moved = {n: (v, after[n]) for n, v in before.items() if n in after and after[n] != v}
-dropped = sorted(set(before) - set(after))
-if moved or dropped:
-    raise SystemExit(f"pre-existing packages changed: moved={moved} dropped={dropped}")
-print("venv additions:", sorted(set(after) - set(before)))
-PY
+      "PyYAML>=6,<7"
 
 # Plugins. `hermes plugins install` commits the plugin directory in one admission transaction;
 # `--ref` accepts only a full commit SHA, so each release tag is resolved first (peeled tag
