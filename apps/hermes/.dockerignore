@@ -3,3 +3,4 @@
 !patches/
 !scripts/
 !entrypoint.sh
+!cont-init.d/

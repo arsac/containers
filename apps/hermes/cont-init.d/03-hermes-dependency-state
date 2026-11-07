@@ -1,0 +1,75 @@
+#!/command/with-contenv sh
+# shellcheck shell=sh
+# Record the dependency state pm's dashboard badge reads.
+#
+# pm answers "are the dependencies in place?" by comparing a stamp over (uv.lock, extras, python
+# identity, member union) with what it recorded, and reports the memory provider's
+# `dependencies_installed` from that. The record lives in the *runtime* facts, under
+# $HERMES_HOME/installs/<install key>/, because the worker rewrites it and /opt/hermes is
+# read-only: a record baked into the image's store is not refreshable, and a probe that finds no
+# usable record tries to write one, fails, and reports the provider unavailable.
+#
+# Written only when the recorded stamp differs, so an unchanged volume keeps whatever pm last
+# wrote and the step is a no-op on every boot after the first.
+set -u
+
+hermes_home="${HERMES_HOME:-/opt/data}"
+state="$hermes_home/installs"
+
+if ! /opt/hermes/.venv/bin/python - "$hermes_home" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+home = Path(sys.argv[1])
+root = Path("/opt/hermes")
+extras_file = root / "dependency-extras.txt"
+
+from pm.environments import runtime_facts_path
+from pm.lock import Facts
+from pm.packages import Venv
+from pm.paths import facts_path
+from pm.publication import candidate_members
+
+extras = [line for line in extras_file.read_text().split() if line] if extras_file.is_file() else []
+members = candidate_members([root / path for path in (
+    "plugins/memory/hindsight",
+    "plugins/platforms/homeassistant",
+    "plugins/hermes_otel",
+)])
+if not extras or not members:
+    print("[hermes-deps] missing extras or plugin members; leaving dependency state alone")
+    raise SystemExit(1)
+
+stamp = Venv(root).expected_stamp(extras, plugin_dirs=members)
+target = runtime_facts_path(root)
+try:
+    state = json.loads(target.read_text(encoding="utf-8"))
+except (OSError, ValueError):
+    state = {}
+recorded = (state.get("packages") or {}).get("venv") or {}
+if recorded.get("stamp") == stamp:
+    raise SystemExit(0)
+
+schema = state.get("schema")
+if schema is None:
+    try:
+        schema = json.loads(facts_path().read_text(encoding="utf-8")).get("schema")
+    except (OSError, ValueError):
+        schema = None
+packages = state.setdefault("packages", {})
+packages["venv"] = {"extras": sorted(extras), "stamp": stamp}
+target.parent.mkdir(parents=True, exist_ok=True)
+target.write_text(json.dumps({"schema": schema, "packages": packages}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+print(f"[hermes-deps] recorded dependency state {stamp[:12]} in {target}")
+PY
+then
+    echo "[hermes-deps] warning: dependency state not recorded; the dashboard may report pending installs" >&2
+fi
+
+# cont-init runs as root on a root start; hand the file to the runtime account.
+if [ "$(id -u)" = 0 ] && [ -d "$state" ]; then
+    chown -R hermes:hermes "$state" 2>/dev/null || true
+fi
+
+exit 0
