@@ -83,6 +83,34 @@ For the other two, `hermes plugins list` reports `homeassistant ... enabled` and
 "runtime discovery, manifest parsing, import, and registration passed" with 34 hooks.
 `apps/hermes/container_test.go` asserts all of that.
 
+## Installing plugins at runtime
+
+The dashboard has a Plugins hub and the CLI has the same installer, so a user can add a plugin to
+the running container. That works, unprivileged, and it never touches the image:
+
+| What                | Where it goes                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Plugin tree         | `$HERMES_HOME/plugins/<name>` (the volume, e.g. `/opt/data/plugins/anki`)                                                             |
+| Selection           | `plugins.enabled` in `$HERMES_HOME/config.yaml`                                                                                       |
+| Python dependencies | a package-manager generation under `$HERMES_HOME/installs/<hash>/environments/<hash>` - never `/opt/hermes/.venv`, which is read-only |
+
+Dependencies still import: verified in the base image with the packages genuinely absent from the
+venv, where a runtime install of `hermes_otel` resolved into a generation and then registered all
+34 of its hooks.
+
+Two consequences worth knowing:
+
+- **A runtime copy of a name this image pins wins over the bundled one.** Installing
+  `hermes_otel` 1.18.2 into the volume and selecting it makes the image's pinned 1.32.5 lose:
+  `hermes plugins list` then shows `git / 1.18.2`, and 15 hooks load instead of 34. Memory
+  providers are the exception - their discovery prefers the bundled copy, so a runtime `hindsight`
+  would not take. Anything installed this way is outside the image's pins, its `requires_hermes`
+  sweep and its tests, and it disappears with the volume; changing the plugin set belongs in a PR
+  against the pins instead.
+- **It can be forbidden** by mounting `$HERMES_HOME/plugins` read-only. Attempts then fail with
+  `OSError: [Errno 30] Read-only file system` and nothing is written (a traceback rather than a
+  friendly message, since that path is not upstream's expected state).
+
 ## Hindsight settings
 
 Activation is **not** `hermes plugins enable`. A memory provider is selected by config, one
