@@ -66,11 +66,48 @@ printf 'plugins:\n  enabled: [hermes_otel]\n' > "$HERMES_HOME/config.yaml"
 hermes plugins list | grep -qE 'hermes_otel +│ enabled'`
 		helpers.RequireCommandSucceeds(t, image, nil, `/bin/sh`, `-c`, script)
 	})
+	t.Run("boots the supervised tree unprivileged", func(t *testing.T) {
+		helpers.RequireBoots(t, image, helpers.BootConfig{
+			User:      "1000:1000",
+			Cmd:       servedCommand,
+			Env:       dashboardEnv,
+			Ready:     `HERMES_DASHBOARD_READY port=`,
+			Forbidden: bootFatals,
+		})
+	})
+	t.Run("boots the supervised tree as root", func(t *testing.T) {
+		// Root is still upstream's default and a legitimate deployment; the /run fix must not
+		// regress it. preinit re-chowns /run here, so this path never needed the fix.
+		helpers.RequireBoots(t, image, helpers.BootConfig{
+			User:      "0:0",
+			Cmd:       servedCommand,
+			Env:       dashboardEnv,
+			Ready:     `HERMES_DASHBOARD_READY port=`,
+			Forbidden: bootFatals,
+		})
+	})
 	t.Run("plugins support the bundled hermes version", func(t *testing.T) {
 		script, err := os.ReadFile("plugin_compat.py")
 		require.NoError(t, err)
 		helpers.RequireCommandSucceeds(t, image, nil, `/opt/hermes/.venv/bin/python`, `-c`, string(script))
 	})
+}
+
+// bootFatals abort s6-overlay before any service starts. `s6-applyuidgid: fatal:` is deliberately
+// not here: it is upstream's boot hook failing to drop privileges it does not need when it is
+// already the runtime user, and the hook carries on.
+var bootFatals = []string{"preinit: fatal", "s6-overlay-suexec: fatal"}
+
+// servedCommand is the job a supervised deployment runs: it registers a profile gateway with s6
+// and stays up, where the image's no-argument default finishes and shuts the container down.
+var servedCommand = []string{"gateway", "run"}
+
+// dashboardEnv starts the supervised dashboard, whose readiness line is how a deployment knows
+// the tree is up; the credentials only satisfy the non-loopback auth gate.
+var dashboardEnv = map[string]string{
+	"HERMES_DASHBOARD":                     "1",
+	"HERMES_DASHBOARD_BASIC_AUTH_USERNAME": "boot-test",
+	"HERMES_DASHBOARD_BASIC_AUTH_PASSWORD": "boot-test",
 }
 
 // requireActiveProvider asserts `hermes memory status` reports hindsight as both the selected

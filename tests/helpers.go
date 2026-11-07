@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/log"
 	"github.com/testcontainers/testcontainers-go/wait"
 
+	"github.com/moby/moby/api/types/container"
 	dockerclient "github.com/moby/moby/client"
 )
 
@@ -81,6 +83,95 @@ func requireExitZero(t *testing.T, ctx context.Context, c testcontainers.Contain
 	state, err := c.State(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 0, state.ExitCode, what)
+}
+
+// BootConfig describes one supervised boot: the image's own entrypoint under PID 1, the log line
+// that means the tree finished coming up, and the identity to come up as.
+type BootConfig struct {
+	User string // "1000:1000": the identity the deployment declares
+	// Cmd is the long-running job a deployment runs under supervision. The image's own default
+	// finishes and takes the container with it, which /init treats as a shutdown.
+	Cmd       []string
+	Env       map[string]string // configuration the boot needs to reach readiness
+	Ready     string            // log line that appears once the supervised tree is up
+	Forbidden []string          // log lines that must not appear during the boot
+}
+
+const (
+	bootTimeout = 120 * time.Second // a cold first boot seeds config and syncs upstream's skills
+	bootPoll    = 500 * time.Millisecond
+	bootSettle  = 5 * time.Second // after readiness, prove it keeps running on its own
+)
+
+// RequireBoots starts the image under its own entrypoint and asserts the boot reaches Ready, is
+// still running afterwards, never logged one of Forbidden, and ends up running as User's uid.
+//
+// It always boots with no-new-privileges, which is what a hardened pod does
+// (allowPrivilegeEscalation: false, set alongside runAsNonRoot). Without it a setuid helper in the
+// image can escalate and repair state the image should have shipped correctly - a boot that only
+// survives that way crash-loops where it is actually deployed, so a test that permits it proves
+// nothing.
+func RequireBoots(t *testing.T, image string, boot BootConfig) testcontainers.Container {
+	t.Helper()
+
+	ctx := t.Context()
+	uid := strings.SplitN(boot.User, ":", 2)[0]
+
+	opts := []testcontainers.ContainerCustomizer{
+		testcontainers.WithConfigModifier(func(config *container.Config) { config.User = boot.User }),
+		testcontainers.WithHostConfigModifier(func(config *container.HostConfig) {
+			config.SecurityOpt = []string{"no-new-privileges"}
+		}),
+	}
+	if len(boot.Cmd) > 0 {
+		opts = append(opts, testcontainers.WithCmd(boot.Cmd...))
+	}
+	if len(boot.Env) > 0 {
+		opts = append(opts, testcontainers.WithEnv(boot.Env))
+	}
+
+	c := runContainer(t, ctx, image, opts...)
+
+	// Readiness is polled out of the container's own log rather than expressed as a wait strategy:
+	// s6 takes the whole container down when the boot dies, and that exit is what a caller needs
+	// (the crash log), not a startup timeout two minutes later.
+	var drained string
+	deadline := time.Now().Add(bootTimeout)
+	for {
+		logs, err := c.Logs(ctx)
+		require.NoError(t, err)
+		raw, err := io.ReadAll(logs)
+		logs.Close()
+		require.NoError(t, err)
+		drained = string(raw)
+		if strings.Contains(drained, boot.Ready) {
+			break
+		}
+		state, err := c.State(ctx)
+		require.NoError(t, err)
+		require.True(t, state.Running, "container stopped with exit code %d before the boot reached readiness, log:\n%s", state.ExitCode, drained)
+		require.True(t, time.Now().Before(deadline), "boot never logged %q within %s, log:\n%s", boot.Ready, bootTimeout, drained)
+		time.Sleep(bootPoll)
+	}
+
+	for _, forbidden := range boot.Forbidden {
+		require.NotContains(t, drained, forbidden, "boot logged a line it must not")
+	}
+
+	require.Never(t, func() bool {
+		state, err := c.State(ctx)
+		require.NoError(t, err)
+		return !state.Running
+	}, bootSettle, 250*time.Millisecond, "container stopped on its own after boot")
+
+	code, reader, err := c.Exec(ctx, []string{"/bin/sh", "-c", `id -u`}, tcexec.Multiplexed())
+	require.NoError(t, err)
+	output, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	require.Equal(t, 0, code, "id -u should succeed, output: %s", output)
+	require.Equal(t, uid, strings.TrimSpace(string(output)), "booted container should run as %s", boot.User)
+
+	return c
 }
 
 // HTTPTestConfig holds the configuration for HTTP endpoint tests
