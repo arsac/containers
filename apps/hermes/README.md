@@ -72,15 +72,21 @@ memory:
 The provider reads its own settings from `$HERMES_HOME/hindsight/config.json`, else the
 environment:
 
-| Env var             | Notes                                                                                       |
-| ------------------- | ------------------------------------------------------------------------------------------- |
-| `HINDSIGHT_API_URL` | Hindsight API base URL (default `https://api.hindsight.vectorize.io`).                      |
-| `HINDSIGHT_API_KEY` | Required in cloud mode; `hermes memory status` reports the provider unavailable without it. |
-| `HINDSIGHT_MODE`    | `cloud` (default), `local_external`, or `local_embedded`.                                   |
+| Env var             | Notes                                                                                                                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HINDSIGHT_MODE`    | `cloud` (default), `local_external` (a Hindsight server you run), or `local_embedded` (not supported in this image, see below).                                        |
+| `HINDSIGHT_API_URL` | API base URL. Defaults to `https://api.hindsight.vectorize.io` in cloud mode and `http://localhost:8888` in `local_external`, so a self-hosted deployment must set it. |
+| `HINDSIGHT_API_KEY` | Required in cloud mode, optional in `local_external`, sent when set.                                                                                                   |
 
-`local_embedded` is **not** supported by this image: it needs `hindsight-embed`, which is
-deliberately not installed. Everything else in `HERMES_HOME` the deployment normally sets
-(model provider keys, gateway settings) is untouched by this image.
+`local_external` is the mode for pointing at your own Hindsight: it needs nothing beyond the
+client this image already installs, and `hermes memory status` reports it available with only
+a URL.
+
+`local_embedded` is the one mode this image **cannot** run: it needs `hindsight-embed` and a
+Hindsight server process started inside the container (downloaded on first use, plus an LLM
+key and a writable home), which is deliberately not installed. Asked for it, the provider
+reports itself unavailable instead of failing every turn. Everything else in `HERMES_HOME` the
+deployment normally sets (model provider keys, gateway settings) is untouched by this image.
 
 ## Runtime
 

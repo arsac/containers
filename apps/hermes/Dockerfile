@@ -14,6 +14,10 @@ ARG VERSION
 ARG HINDSIGHT_CLIENT_VERSION="1.2.0"
 ARG HINDSIGHT_TAG="integrations/hermes/v1.2.4"
 
+# /bin/sh is dash here, so a piped RUN has no pipefail; declare it rather than trust the
+# default shell (the tag lookup below pipes through tail/cut).
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 # The runtime account. Upstream bakes `hermes` as 10000 and starts as root so a boot hook
 # can remap the UID and chown the data volume; its entrypoint refuses a --user UID that is
 # not this account's. Remapping the account to 1000:1000 here lets the container start
