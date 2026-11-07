@@ -198,6 +198,10 @@ Three things make unattended bumps safe rather than hopeful:
   followed anywhere here.
 - **Every pin is content-addressed in the build**, and a tag that does not point at the version
   it claims fails the build.
+- **A release can outrun the installer as well as the hermes version**: manifests carry a
+  `manifest_version` (this image supports v2) and `hermes plugins install` refuses a newer one
+  outright, so such a release fails the build instead of installing half a plugin. Other hermes
+  images are pinned to old plugin commits for exactly that reason.
 - **The build checks each plugin's `requires_hermes` against the base image's version, and every
   declared requirement against what the image installed.** A plugin release that outruns the
   base image, needs a newer client, or introduces a dependency we do not install fails the build
