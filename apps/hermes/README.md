@@ -144,6 +144,10 @@ deployment normally sets (model provider keys, gateway settings) is untouched by
 | `hermes_otel` plugin release tag | `HERMES_OTEL_TAG`          | Renovate (`datasource=github-tags`) |
 | `homeassistant` plugin commit    | `HOMEASSISTANT_REF`        | Renovate (`datasource=git-refs`)    |
 
+Every pin is declared once, in `docker-bake.hcl`; the Dockerfile's `ARG`s carry no defaults, so a
+standalone `docker build` stops at the first pin and says where it comes from instead of building
+whatever version was last hardcoded there.
+
 Variable names say which kind of value they hold: `*_TAG` is an upstream release tag,
 `*_REF` is a commit, as `ATE_ENV_REF` is elsewhere in this repo. The kind is not cosmetic -
 `hermes plugins install --ref` refuses anything but a full commit SHA, so a tag is resolved to
@@ -188,8 +192,9 @@ The build checks what only a build can: that each plugin lands where its kind is
 that each release tag resolves to a commit whose manifest carries the version the tag claims.
 
 Whether a plugin still **loads** is asserted by `apps/hermes/container_test.go` against the built
-image: `requires_hermes` against the hermes version this image reports, the plugin's imports, its
-hook or tool registration, and provider availability. That split is deliberate - the release
+image: `requires_hermes` against the hermes version this image reports - swept over every bundled
+manifest, so there is no list of names to keep in step with the Dockerfile - plus the plugins'
+imports, hook/tool registration, and provider availability. That split is deliberate - the release
 workflow runs those tests before it publishes anything (this app has no Forgejo target, and the
 GitHub build loads the image and runs `go test` whenever a `container_test.go` exists), so a
 published image cannot be one that failed to load. A laptop build that skips the tests can be, and

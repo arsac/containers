@@ -12,14 +12,22 @@ FROM ${SOURCE_IMAGE}:${VERSION}
 
 # global-scope ARGs are not visible inside stages without re-declaration
 ARG VERSION
-ARG HINDSIGHT_CLIENT_VERSION="1.2.0"
-ARG HINDSIGHT_TAG="integrations/hermes/v1.2.4"
-ARG HERMES_OTEL_TAG="hermes-otel-v1.32.5"
-ARG HOMEASSISTANT_REF="13b2c1c9c8204bf333df240b2aacf98c3e6250b7"
+# The pins have no defaults: docker-bake.hcl owns them, so a standalone `docker build` fails at
+# the step that uses them instead of quietly building whatever version was hardcoded here.
+ARG HINDSIGHT_CLIENT_VERSION
+ARG HINDSIGHT_TAG
+ARG HERMES_OTEL_TAG
+ARG HOMEASSISTANT_REF
 
 # /bin/sh is dash here, so a piped RUN has no pipefail; declare it rather than trust the
 # default shell (the freeze, the pin checks and the pin greps below all pipe).
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# Say that, instead of dying later inside uv or git with an empty pin.
+RUN : "${HINDSIGHT_CLIENT_VERSION:?is a docker-bake.hcl pin}" \
+      "${HINDSIGHT_TAG:?is a docker-bake.hcl pin}" \
+      "${HERMES_OTEL_TAG:?is a docker-bake.hcl pin}" \
+      "${HOMEASSISTANT_REF:?is a docker-bake.hcl pin}"
 
 # The runtime account. Upstream bakes `hermes` as 10000 and starts as root so a boot hook can
 # remap the UID and chown the data volume; its entrypoint refuses a --user UID that is not this
