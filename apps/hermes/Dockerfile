@@ -108,4 +108,11 @@ RUN printf '%s\n' "${HOMEASSISTANT_REF}" | grep -Eqx '[0-9a-f]{40}' \
 # `requires_hermes`, its imports, its registrations - is asserted by container_test.go against
 # this image, because the release workflow runs those tests before it publishes anything.
 
+# The venv is the image's, not the runtime's: `pm` reads this flag and refuses every on-demand
+# install (plugin deps, skill extras, the boot-time dependency refresh), which is the state
+# upstream's Docker image declares and the only one under which "immutable venv" is true.
+# The user-facing switch is security.allow_lazy_installs in config.yaml; this one is the
+# image-level bridge `pm/client.py` sets for its own children.
+ENV HERMES_DISABLE_LAZY_INSTALLS=1
+
 USER 1000:1000
